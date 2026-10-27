@@ -346,6 +346,12 @@ def get_status():
         if ret_g == 0 and g_out.strip():
             members = g_out.strip().split(":")[-1]
             dev_count = len([m for m in members.split(",") if m.strip()])
+        if dev_count == 0 and USERS_FILE.exists():
+            try:
+                with open(USERS_FILE, "r", encoding="utf-8") as f:
+                    dev_count = len([l for l in f if l.strip() and not l.strip().startswith("#")])
+            except Exception:
+                pass
 
         repo_count = len(list(Path("/srv/repos").glob("*.git"))) if Path("/srv/repos").exists() else 0
         backup_count = len(list(Path("/srv/backups").glob("backup_*.tar.gz"))) if Path("/srv/backups").exists() else 0
@@ -383,44 +389,104 @@ def get_users():
             return make_json_response(ok=True, data=demo_state["users"], command=cmd, output=out)
 
         ret, cmd, out = run_command(["getent", "group", "developers"])
-        if ret != 0:
-            return make_json_response(ok=True, data=[], command=cmd, output=out)
-        
-        parts = out.strip().split(":")
-        members = parts[3].split(",") if len(parts) >= 4 and parts[3] else []
+        members = []
+        gid_developers = None
+        if ret == 0 and out.strip():
+            parts = out.strip().split(":")
+            if len(parts) >= 4 and parts[3]:
+                members = [m.strip() for m in parts[3].split(",") if m.strip()]
+            if len(parts) >= 3:
+                gid_developers = parts[2].strip()
+
+        # Batch 1: Get all passwd entries in ONE call
+        passwd_map = {}
+        try:
+            ret_p, _, p_out = run_command(["getent", "passwd"])
+            if ret_p == 0 and p_out:
+                for line in p_out.splitlines():
+                    p_parts = line.split(":")
+                    if len(p_parts) >= 7:
+                        uname = p_parts[0].strip()
+                        uid = p_parts[2].strip()
+                        gid = p_parts[3].strip()
+                        gecos = p_parts[4].split(",")[0].strip() if p_parts[4] else uname
+                        passwd_map[uname] = {
+                            "fullname": gecos or uname,
+                            "uid": int(uid) if uid.isdigit() else 1000,
+                            "gid": gid
+                        }
+                        if gid_developers and gid == gid_developers and uname not in members:
+                            members.append(uname)
+        except Exception:
+            pass
+
+        # Batch 2: Read lastlog in ONE call
+        lastlog_map = {}
+        try:
+            ret_ll, _, ll_out = run_command(["lastlog"])
+            if ret_ll == 0 and ll_out:
+                for line in ll_out.splitlines()[1:]:
+                    parts = line.split()
+                    if parts:
+                        uname = parts[0]
+                        if "**Never" in line:
+                            lastlog_map[uname] = "Never logged in"
+                        elif len(parts) >= 4:
+                            lastlog_map[uname] = " ".join(parts[3:])
+        except Exception:
+            pass
+
+        # Batch 3: Read locked accounts from /etc/shadow directly if root
+        shadow_locked = set()
+        if Path("/etc/shadow").is_file():
+            try:
+                with open("/etc/shadow", "r") as f:
+                    for line in f:
+                        s_parts = line.split(":")
+                        if len(s_parts) >= 2:
+                            uname = s_parts[0]
+                            pw = s_parts[1]
+                            if pw.startswith("!") or pw.startswith("*"):
+                                shadow_locked.add(uname)
+            except Exception:
+                pass
+
         users = []
         for u in members:
-            u = u.strip()
-            if not u:
-                continue
-            fullname = u
-            ret_p, _, p_out = run_command(["getent", "passwd", u])
-            if ret_p == 0:
-                p_parts = p_out.strip().split(":")
-                if len(p_parts) >= 5 and p_parts[4]:
-                    fullname = p_parts[4].split(",")[0]
-            
-            # Check locked status
-            status = "active"
-            ret_pw, _, pw_out = run_command(["passwd", "-S", u])
-            if ret_pw == 0 and " L " in f" {pw_out} ":
-                status = "locked"
-                
-            # Last login
-            ret_ll, _, ll_out = run_command(["lastlog", "-u", u])
-            last_login = "Never logged in"
-            if ret_ll == 0:
-                lines = ll_out.strip().splitlines()
-                if len(lines) > 1:
-                    last_login = " ".join(lines[1].split()[3:]) if len(lines[1].split()) > 3 else "Never logged in"
-
+            p_info = passwd_map.get(u, {"fullname": u, "uid": 1000})
+            is_locked = (u in shadow_locked)
+            last_login = lastlog_map.get(u, "Never logged in")
             users.append({
                 "username": u,
-                "fullname": fullname,
+                "fullname": p_info.get("fullname", u),
                 "group": "developers",
-                "status": status,
-                "last_login": last_login
+                "status": "locked" if is_locked else "active",
+                "last_login": last_login,
+                "uid": p_info.get("uid", 1000)
             })
+
+        # Fallback: if group is empty on system, load developers from users.txt
+        if not users and USERS_FILE.exists():
+            try:
+                with open(USERS_FILE, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#"):
+                            parts = line.split(",", 1)
+                            uname = parts[0].strip()
+                            fname = parts[1].strip() if len(parts) > 1 else uname
+                            p_info = passwd_map.get(uname)
+                            users.append({
+                                "username": uname,
+                                "fullname": p_info.get("fullname", fname) if p_info else fname,
+                                "group": "developers",
+                                "status": "active",
+                                "last_login": lastlog_map.get(uname, "Active (users.txt)"),
+                                "uid": p_info["uid"] if p_info else 1000 + len(users) + 1
+                            })
+            except Exception:
+                pass
+
         return make_json_response(ok=True, data=users, command=cmd, output=out)
     except Exception as e:
         return make_json_response(ok=False, error=str(e), status_code=500)

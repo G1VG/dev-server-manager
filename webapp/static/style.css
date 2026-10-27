@@ -1032,6 +1032,93 @@ body.dark-theme {
 .legend-color.teal { background: var(--accent-teal); }
 .legend-color.purple { background: var(--accent-purple); }
 
+/* KPI Clickable & Overview Devs Roster */
+.kpi-card.clickable {
+  cursor: pointer;
+  position: relative;
+}
+.kpi-card.clickable:hover {
+  border-color: var(--accent-teal);
+  box-shadow: 0 0 16px var(--accent-teal-glow);
+}
+.mt-4 {
+  margin-top: 24px;
+}
+.devs-roster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.dev-roster-card {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all var(--transition-fast);
+}
+.dev-roster-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border-light);
+  transform: translateY(-1px);
+}
+.dev-roster-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0284c7, #0891b2);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.76rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  flex-shrink: 0;
+}
+.dev-roster-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.dev-roster-name {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--text-highlight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dev-roster-username {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--accent-teal);
+}
+.dev-roster-status {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.status-dot.active {
+  background: var(--status-green);
+  box-shadow: 0 0 6px var(--status-green);
+}
+.status-dot.locked {
+  background: var(--status-amber);
+  box-shadow: 0 0 6px var(--status-amber);
+}
+
 /* ==========================================================================
    DEVELOPERS TABLE
    ========================================================================== */

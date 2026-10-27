@@ -135,7 +135,7 @@
 
           <!-- KPI Cards Grid -->
           <div class="kpi-grid">
-            <div class="kpi-card">
+            <div class="kpi-card clickable" data-tab="developers" id="kpiDevsCard" title="Click to view all developer accounts">
               <div class="kpi-header">
                 <span class="kpi-title">Developer Accounts</span>
                 <div class="kpi-icon-wrap teal"><i class="fa-solid fa-users"></i></div>
@@ -143,7 +143,7 @@
               <div class="kpi-value" id="kpiDevs">40</div>
               <div class="kpi-footer">
                 <span class="badge badge-teal">Group: developers</span>
-                <span class="kpi-subtext">Active quota</span>
+                <span class="kpi-subtext">Click to manage <i class="fa-solid fa-chevron-right text-xs"></i></span>
               </div>
             </div>
 
@@ -294,6 +294,26 @@
                 <div class="chart-container">
                   <canvas id="rollingChart"></canvas>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Active Developers Roster Card on Overview -->
+          <div class="card mt-4">
+            <div class="card-header">
+              <div class="card-title">
+                <i class="fa-solid fa-users text-teal"></i>
+                <h3>Developer Accounts Live Roster</h3>
+                <span class="badge badge-teal" id="overviewDevCountBadge">40 Total</span>
+              </div>
+              <button class="btn btn-secondary btn-sm nav-link-jump" data-tab="developers">
+                <span>View Full Table &amp; Manage</span>
+                <i class="fa-solid fa-arrow-right"></i>
+              </button>
+            </div>
+            <div class="card-body">
+              <div class="devs-roster-grid" id="overviewDevsRoster">
+                <!-- Dynamically rendered developer chips -->
               </div>
             </div>
           </div>

@@ -98,7 +98,7 @@ function initNavigation() {
 
     // Trigger tab-specific refresh if needed
     if (tabId === 'logs') loadLogs();
-    if (tabId === 'developers') renderDevelopersTable();
+    if (tabId === 'developers') loadDevelopers();
     if (tabId === 'repositories') renderRepositoriesGrid();
     if (tabId === 'storage') renderLvmView();
 
@@ -110,6 +110,19 @@ function initNavigation() {
     link.addEventListener('click', (e) => {
       e.preventDefault();
       switchTab(link.dataset.tab);
+    });
+  });
+
+  // KPI card quick jump to developers tab
+  document.getElementById('kpiDevsCard')?.addEventListener('click', () => {
+    switchTab('developers');
+  });
+
+  // Overview quick-link jump buttons
+  document.querySelectorAll('.nav-link-jump').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      switchTab(btn.dataset.tab);
     });
   });
 
@@ -181,11 +194,37 @@ async function pollTelemetry() {
     if (res.ok) {
       updateOverviewView(res.data);
       updateRollingChart(res.data.load, res.data.cores, res.data.mem_pct);
+
+      // Keep developer roster synced if count changes or list is empty
+      const devKpiCount = res.data.kpis?.developers ?? 0;
+      if (state.users.length === 0 || (devKpiCount > 0 && state.users.length !== devKpiCount)) {
+        await loadDevelopers();
+      }
     }
   } catch (err) {
     console.error('Polling error:', err);
   } finally {
     state.isRefreshing = false;
+  }
+}
+
+async function loadDevelopers() {
+  try {
+    const usersRes = await apiRequest('/api/users');
+    if (usersRes.ok && Array.isArray(usersRes.data)) {
+      state.users = usersRes.data;
+      renderDevelopersTable();
+      renderOverviewDevsRoster();
+      const count = state.users.length;
+      const navCount = document.getElementById('navDevCount');
+      const kpiDev = document.getElementById('kpiDevs');
+      const badge = document.getElementById('overviewDevCountBadge');
+      if (navCount) navCount.textContent = count;
+      if (kpiDev) kpiDev.textContent = count;
+      if (badge) badge.textContent = `${count} Total`;
+    }
+  } catch (err) {
+    console.error('Failed to load developers:', err);
   }
 }
 
@@ -210,11 +249,17 @@ async function loadAllData() {
       updateModeBadge(statusRes.data.mode);
     }
 
-    if (usersRes.ok) {
+    if (usersRes.ok && Array.isArray(usersRes.data)) {
       state.users = usersRes.data;
       renderDevelopersTable();
-      document.getElementById('navDevCount').textContent = state.users.length;
-      document.getElementById('kpiDevs').textContent = state.users.length;
+      renderOverviewDevsRoster();
+      const count = state.users.length;
+      const navCount = document.getElementById('navDevCount');
+      const kpiDev = document.getElementById('kpiDevs');
+      const badge = document.getElementById('overviewDevCountBadge');
+      if (navCount) navCount.textContent = count;
+      if (kpiDev) kpiDev.textContent = count;
+      if (badge) badge.textContent = `${count} Total`;
     }
 
     if (reposRes.ok) {
@@ -501,8 +546,46 @@ function updateRollingChart(load, cores, memPct) {
 }
 
 // ============================================================================
-// DEVELOPERS TAB: TABLE, FILTER, SEARCH, ACTIONS
+// DEVELOPERS TAB & OVERVIEW ROSTER
 // ============================================================================
+function renderOverviewDevsRoster() {
+  const container = document.getElementById('overviewDevsRoster');
+  if (!container) return;
+
+  const users = state.users || [];
+  if (users.length === 0) {
+    container.innerHTML = `
+      <div class="text-muted p-3 text-center" style="grid-column: 1 / -1;">
+        <i class="fa-solid fa-users fa-2x mb-2 text-teal"></i>
+        <div>No developer accounts loaded yet.</div>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = users.map(u => {
+    const uname = u.username || 'unknown';
+    const fname = u.fullname || uname;
+    const initials = getInitials(fname);
+    const isLocked = u.status === 'locked';
+    const statusClass = isLocked ? 'locked' : 'active';
+    const statusTitle = isLocked ? 'Locked Account' : 'Active Account';
+
+    return `
+      <div class="dev-roster-card" title="${escapeHtml(fname)} (@${escapeHtml(uname)}) — ${statusTitle}">
+        <div class="dev-roster-avatar">${initials}</div>
+        <div class="dev-roster-info">
+          <span class="dev-roster-name">${escapeHtml(fname)}</span>
+          <span class="dev-roster-username">@${escapeHtml(uname)}</span>
+        </div>
+        <div class="dev-roster-status">
+          <span class="status-dot ${statusClass}" title="${statusTitle}"></span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 function renderDevelopersTable() {
   const tbody = document.getElementById('devsTableBody');
   const countEl = document.getElementById('devTableCount');
@@ -511,8 +594,11 @@ function renderDevelopersTable() {
   const search = document.getElementById('devSearchInput')?.value.trim().toLowerCase() || '';
   const filter = document.getElementById('devStatusFilter')?.value || 'all';
 
-  const filtered = state.users.filter(u => {
-    const matchSearch = u.username.toLowerCase().includes(search) || u.fullname.toLowerCase().includes(search);
+  const users = state.users || [];
+  const filtered = users.filter(u => {
+    const uname = (u.username || '').toLowerCase();
+    const fname = (u.fullname || '').toLowerCase();
+    const matchSearch = uname.includes(search) || fname.includes(search);
     const matchFilter = (filter === 'all') || (u.status === filter);
     return matchSearch && matchFilter;
   });
@@ -531,17 +617,19 @@ function renderDevelopersTable() {
   }
 
   tbody.innerHTML = filtered.map(u => {
-    const initials = getInitials(u.fullname || u.username);
+    const uname = u.username || 'unknown';
+    const fname = u.fullname || uname;
+    const initials = getInitials(fname);
     const isLocked = u.status === 'locked';
     const statusBadge = isLocked
       ? `<span class="badge badge-amber"><i class="fa-solid fa-lock"></i> Locked</span>`
       : `<span class="badge badge-green"><i class="fa-solid fa-circle-check"></i> Active</span>`;
 
     const toggleActionBtn = isLocked
-      ? `<button class="btn btn-secondary btn-sm" onclick="handleToggleLock('${u.username}', false)" title="Unlock Account">
+      ? `<button class="btn btn-secondary btn-sm" onclick="handleToggleLock('${uname}', false)" title="Unlock Account">
            <i class="fa-solid fa-lock-open text-teal"></i> Unlock
          </button>`
-      : `<button class="btn btn-secondary btn-sm" onclick="handleToggleLock('${u.username}', true)" title="Lock Account">
+      : `<button class="btn btn-secondary btn-sm" onclick="handleToggleLock('${uname}', true)" title="Lock Account">
            <i class="fa-solid fa-lock text-amber"></i> Lock
          </button>`;
 
@@ -551,19 +639,19 @@ function renderDevelopersTable() {
           <div class="dev-avatar-group">
             <div class="avatar-circle">${initials}</div>
             <div class="avatar-info">
-              <span class="avatar-username">${u.username}</span>
-              <span class="avatar-email">${u.username}@devserver.internal</span>
+              <span class="avatar-username">${escapeHtml(uname)}</span>
+              <span class="avatar-email">${escapeHtml(uname)}@devserver.internal</span>
             </div>
           </div>
         </td>
-        <td><strong>${escapeHtml(u.fullname)}</strong></td>
+        <td><strong>${escapeHtml(fname)}</strong></td>
         <td><span class="badge badge-teal">developers</span></td>
         <td>${statusBadge}</td>
-        <td><span class="font-mono text-xs">${u.last_login || 'Never'}</span></td>
+        <td><span class="font-mono text-xs">${escapeHtml(u.last_login || 'Never')}</span></td>
         <td class="text-right">
           <div class="table-actions">
             ${toggleActionBtn}
-            <button class="btn btn-danger btn-sm" onclick="openDeleteUserModal('${u.username}')" title="Delete Developer Account">
+            <button class="btn btn-danger btn-sm" onclick="openDeleteUserModal('${uname}')" title="Delete Developer Account">
               <i class="fa-solid fa-trash-can"></i>
             </button>
           </div>
@@ -573,11 +661,16 @@ function renderDevelopersTable() {
   }).join('');
 
   if (countEl) {
-    countEl.textContent = `Showing ${filtered.length} of ${state.users.length} developers`;
+    countEl.textContent = `Showing ${filtered.length} of ${users.length} developers`;
   }
 }
 
 function getInitials(name) {
+  if (!name || typeof name !== 'string') return 'DV';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
   if (!name) return 'DV';
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
