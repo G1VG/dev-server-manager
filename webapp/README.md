@@ -75,6 +75,44 @@ Open your browser to:
 http://127.0.0.1:5000
 ```
 
+## Screenshots & 2-Minute Demo
+
+### Capture screenshots
+
+Run the dashboard in Demo Mode (the in-memory data makes the walkthrough safe
+and repeatable), open `http://127.0.0.1:5000`, and set the browser viewport to
+about 1440 × 900. Capture the page with your browser or operating-system
+screenshot tool and save the images locally; no screenshot or browser extension
+is required by the project.
+
+Suggested shots:
+
+1. **Overview** — show the health banner, KPI cards, gauges, and live chart.
+2. **About / Architecture** — show the Browser → Flask API → Bash scripts →
+   Linux diagram and the feature-to-command table.
+3. **Developers or Repositories** — show the searchable list and a management
+   action.
+4. **Automation or Logs** — show the cleanup preview, scheduled jobs, or live
+   log viewer, with the command drawer expanded if useful.
+
+### Walkthrough script (about 2 minutes)
+
+Start the app in Demo Mode using the instructions above. All changes during
+this walkthrough are in-memory demo data and disappear when the server restarts.
+
+| Time | Demo |
+|---|---|
+| 0:00–0:20 | Open **Overview**. Point out the system health summary, account/repository KPIs, resource gauges, and rolling chart. |
+| 0:20–0:40 | Open **About / Architecture**. Follow a request from the browser through Flask and the existing scripts to Linux, then scan the command map. |
+| 0:40–1:00 | Open **Developers**. Search or filter the account list and show the add-user dialog; optionally create a clearly named demo account. |
+| 1:00–1:20 | Open **Repositories** and show shared repository details. Optionally create a demo-only repository to demonstrate the interaction. |
+| 1:20–1:40 | Open **Storage (LVM)** and show the volume topology and resize preview. In Demo Mode, an optional resize changes only simulated data. |
+| 1:40–2:00 | Open **Automation**, run **Dry Run** only, then show **System Logs** and expand the command drawer to explain the API output. |
+
+For a real production server, do not use this demo script as authorization to
+perform mutations: user/repository creation, LVM extension, backup creation,
+and full cleanup affect the host. Review each operation and its impact first.
+
 ### 3. Production Mode (On Ubuntu 22.04/24.04 VM as Root)
 On the target Linux VM, run the backend with `sudo` so it can execute system administration binaries (`useradd`, `lvextend`, `systemctl`, etc.):
 
@@ -134,10 +172,20 @@ Every endpoint returns a standard JSON envelope:
 | `DELETE` | `/api/users/<user>` | Remove user and home directory via `userdel -r` (protects UID < 1000) |
 | `GET` | `/api/repos` | List bare Git repositories in `/srv/repos/` with size and group |
 | `POST` | `/api/repos` | Initialize bare shared repository with group `developers` and setgid (`2775`) |
-| `GET` | `/api/lvm` | Parsed LVM topology (`pvs`, `vgs`, `lvs`) with available free space |
+| `GET` | `/api/lvm` | Parsed LVM topology (`pvs`, `vgs`, `lvs`) with available free space; returns `configured: false` and a helpful message when `vg_dev` or LVM tools are unavailable |
 | `POST` | `/api/lvm/extend` | Online grow of `lv_repos` or `lv_backup` via `lvextend -r -L +<mb>M` |
-| `GET` | `/api/cron` | Parsed schedules from `/etc/cron.d/devserver` with human-readable explanations |
+| `GET` | `/api/cron` | Parsed schedules from `/etc/cron.d/devserver`; returns an empty list when no jobs are configured |
 | `POST` | `/api/cleanup` | Execute cleanup dry-run (`--dry-run`) or actual cleanup (`scripts/cleanup.sh`) |
 | `POST` | `/api/backup` | Execute immediate verified backup archive (`scripts/backup.sh`) |
 | `GET` | `/api/backups` | List backup archives in `/srv/backups/` sorted newest first |
 | `GET` | `/api/logs` | Fetch tail of `/var/log/devserver/activity.log` or `monitor.log` |
+
+Production-path read endpoints and safe dry-runs can be checked without changing
+the host by running `python3 test_production_endpoints.py` from this directory.
+The tests mock Linux command output and do not modify users, repositories,
+volumes, backups, logs, or cleanup targets.
+
+To check the live endpoints on the Ubuntu VM, leave the dashboard running and
+run `python3 check_live_endpoints.py` from this directory on the VM. This checks
+the read-only endpoints and runs cleanup in dry-run mode only. It does not
+create users, repositories, or backups, and does not resize LVM.

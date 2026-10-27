@@ -15,11 +15,11 @@
   <!-- Chart.js 4.4 -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
-<body class="dark-theme">
+<body class="dark-theme" data-theme="dark">
 
   <div class="app-container">
     <!-- ==================== SIDEBAR ==================== -->
-    <aside class="sidebar" id="sidebar">
+    <aside class="sidebar" id="sidebar" aria-label="Sidebar Navigation">
       <div class="sidebar-brand">
         <div class="brand-icon">
           <i class="fa-solid fa-server"></i>
@@ -38,36 +38,40 @@
         </div>
       </div>
 
-      <nav class="nav-menu" id="navMenu">
-        <a href="#overview" class="nav-item active" data-tab="overview">
+      <nav class="nav-menu" id="navMenu" role="tablist" aria-label="Dashboard sections">
+        <a href="#overview" class="nav-item active" data-tab="overview" role="tab" aria-selected="true" aria-controls="pane-overview" id="tab-overview">
           <i class="fa-solid fa-gauge-high"></i>
           <span>Overview</span>
         </a>
-        <a href="#developers" class="nav-item" data-tab="developers">
+        <a href="#developers" class="nav-item" data-tab="developers" role="tab" aria-selected="false" aria-controls="pane-developers" id="tab-developers">
           <i class="fa-solid fa-users"></i>
           <span>Developers</span>
           <span class="nav-count" id="navDevCount">40</span>
         </a>
-        <a href="#repositories" class="nav-item" data-tab="repositories">
+        <a href="#repositories" class="nav-item" data-tab="repositories" role="tab" aria-selected="false" aria-controls="pane-repositories" id="tab-repositories">
           <i class="fa-brands fa-git-alt"></i>
           <span>Repositories</span>
           <span class="nav-count" id="navRepoCount">3</span>
         </a>
-        <a href="#storage" class="nav-item" data-tab="storage">
+        <a href="#storage" class="nav-item" data-tab="storage" role="tab" aria-selected="false" aria-controls="pane-storage" id="tab-storage">
           <i class="fa-solid fa-hard-drive"></i>
           <span>Storage (LVM)</span>
         </a>
-        <a href="#automation" class="nav-item" data-tab="automation">
+        <a href="#automation" class="nav-item" data-tab="automation" role="tab" aria-selected="false" aria-controls="pane-automation" id="tab-automation">
           <i class="fa-solid fa-clock-rotate-left"></i>
           <span>Automation</span>
         </a>
-        <a href="#backups" class="nav-item" data-tab="backups">
+        <a href="#backups" class="nav-item" data-tab="backups" role="tab" aria-selected="false" aria-controls="pane-backups" id="tab-backups">
           <i class="fa-solid fa-box-archive"></i>
           <span>Backups</span>
         </a>
-        <a href="#logs" class="nav-item" data-tab="logs">
+        <a href="#logs" class="nav-item" data-tab="logs" role="tab" aria-selected="false" aria-controls="pane-logs" id="tab-logs">
           <i class="fa-solid fa-terminal"></i>
           <span>System Logs</span>
+        </a>
+        <a href="#architecture" class="nav-item" data-tab="architecture" role="tab" aria-selected="false" aria-controls="pane-architecture" id="tab-architecture">
+          <i class="fa-solid fa-diagram-project"></i>
+          <span>About / Architecture</span>
         </a>
       </nav>
 
@@ -77,7 +81,7 @@
           <div class="server-os">Ubuntu 24.04 LTS (40 Devs)</div>
           <div class="server-uptime" id="sidebarUptime">Uptime: loading...</div>
         </div>
-        <button class="terminal-trigger-btn" id="terminalToggleBtn" title="Toggle Linux Command Drawer">
+        <button class="terminal-trigger-btn" id="terminalToggleBtn" title="Toggle Linux Command Drawer (Ctrl+`)">
           <i class="fa-solid fa-terminal"></i>
           <span>Command Drawer</span>
           <span class="command-pulse" id="commandPulseDot"></span>
@@ -90,7 +94,7 @@
       <!-- Top App Header -->
       <header class="top-header">
         <div class="header-left">
-          <button class="mobile-toggle" id="mobileMenuBtn" aria-label="Toggle navigation">
+          <button class="mobile-toggle" id="mobileMenuBtn" aria-label="Toggle navigation" aria-controls="sidebar" aria-expanded="false">
             <i class="fa-solid fa-bars"></i>
           </button>
           <div class="page-title-group">
@@ -100,13 +104,18 @@
         </div>
 
         <div class="header-right">
+          <!-- Theme Toggle Button -->
+          <button class="btn btn-icon theme-toggle-btn" id="themeToggleBtn" title="Toggle Light / Dark Mode" aria-label="Toggle theme mode">
+            <i class="fa-solid fa-moon" id="themeIcon"></i>
+          </button>
+
           <!-- Live Indicator & Refresh Controls -->
           <div class="live-status-pill" id="liveStatusPill">
             <span class="live-pulse"></span>
             <span class="live-text" id="liveStatusText">LIVE (5s)</span>
           </div>
 
-          <button class="btn btn-icon" id="pauseRefreshBtn" title="Pause/Resume Auto-refresh">
+          <button class="btn btn-icon" id="pauseRefreshBtn" title="Pause/Resume Auto-refresh" aria-label="Pause or resume live auto refresh">
             <i class="fa-solid fa-pause" id="pauseIcon"></i>
           </button>
 
@@ -121,7 +130,7 @@
       <main class="content-area">
 
         <!-- ==================== TAB: OVERVIEW ==================== -->
-        <section class="tab-pane active" id="pane-overview">
+        <section class="tab-pane active" id="pane-overview" role="tabpanel" aria-labelledby="tab-overview" tabindex="0">
           <!-- Global Alert Banner -->
           <div class="alert-banner healthy" id="overviewAlertBanner">
             <div class="alert-banner-icon">
@@ -135,7 +144,7 @@
 
           <!-- KPI Cards Grid -->
           <div class="kpi-grid">
-            <div class="kpi-card clickable" data-tab="developers" id="kpiDevsCard" title="Click to view all developer accounts">
+            <div class="kpi-card clickable" data-tab="developers" id="kpiDevsCard" role="button" tabindex="0" title="Click to view all developer accounts" aria-label="View all developer accounts">
               <div class="kpi-header">
                 <span class="kpi-title">Developer Accounts</span>
                 <div class="kpi-icon-wrap teal"><i class="fa-solid fa-users"></i></div>
@@ -320,18 +329,47 @@
         </section>
 
         <!-- ==================== TAB: DEVELOPERS ==================== -->
-        <section class="tab-pane" id="pane-developers">
+        <section class="tab-pane" id="pane-developers" role="tabpanel" aria-labelledby="tab-developers" tabindex="0">
+          <div class="developer-section-heading">
+            <div>
+              <h3>Developer directory</h3>
+              <p>Every account is listed below. Search or filter to find an account, then manage its status.</p>
+            </div>
+            <span class="developer-sync-pill" id="developerSyncStatus" role="status" aria-live="polite">
+              <span class="status-dot active" aria-hidden="true"></span>
+              <span>Connecting to server…</span>
+            </span>
+          </div>
+
+          <div class="developer-summary-grid" aria-label="Developer account summary">
+            <div class="developer-summary-card">
+              <span class="developer-summary-label">Total accounts</span>
+              <strong class="developer-summary-value" id="developerTotalCount">—</strong>
+              <span class="developer-summary-note">In the developers group</span>
+            </div>
+            <div class="developer-summary-card">
+              <span class="developer-summary-label">Active</span>
+              <strong class="developer-summary-value text-green" id="developerActiveCount">—</strong>
+              <span class="developer-summary-note">Accounts ready to use</span>
+            </div>
+            <div class="developer-summary-card">
+              <span class="developer-summary-label">Locked</span>
+              <strong class="developer-summary-value text-amber" id="developerLockedCount">—</strong>
+              <span class="developer-summary-note">Access currently disabled</span>
+            </div>
+          </div>
+
           <div class="pane-action-bar">
             <div class="search-filter-group">
               <div class="search-box">
                 <i class="fa-solid fa-magnifying-glass"></i>
-                <input type="text" id="devSearchInput" placeholder="Search developer by username or name..." autocomplete="off">
+                <input type="search" id="devSearchInput" placeholder="Search by username or full name…" autocomplete="off" aria-label="Search developers by username or full name">
               </div>
               <div class="select-filter">
-                <select id="devStatusFilter">
-                  <option value="all">All Accounts (40)</option>
-                  <option value="active">Active Only</option>
-                  <option value="locked">Locked Only</option>
+                <select id="devStatusFilter" aria-label="Filter developers by account status">
+                  <option value="all">All accounts</option>
+                  <option value="active">Active only</option>
+                  <option value="locked">Locked only</option>
                 </select>
               </div>
             </div>
@@ -343,15 +381,15 @@
 
           <div class="card table-card">
             <div class="table-responsive">
-              <table class="data-table" id="devsTable">
+            <table class="data-table" id="devsTable" aria-describedby="devTableCount">
                 <thead>
                   <tr>
-                    <th>Developer</th>
-                    <th>Full Name</th>
-                    <th>Primary Group</th>
-                    <th>Status</th>
-                    <th>Last Login</th>
-                    <th class="text-right">Actions</th>
+                  <th scope="col">Developer</th>
+                  <th scope="col">Full Name</th>
+                  <th scope="col">Primary Group</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Last Login</th>
+                  <th scope="col" class="text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody id="devsTableBody">
@@ -360,14 +398,14 @@
               </table>
             </div>
             <div class="table-footer">
-              <span id="devTableCount">Showing 40 developers</span>
-              <span class="text-muted text-sm">Temporary password policy: Welcome@123 (chage -d 0)</span>
+              <span id="devTableCount" role="status" aria-live="polite">Loading developer accounts…</span>
+              <span class="text-muted text-sm">Account actions are applied by the server.</span>
             </div>
           </div>
         </section>
 
         <!-- ==================== TAB: REPOSITORIES ==================== -->
-        <section class="tab-pane" id="pane-repositories">
+        <section class="tab-pane" id="pane-repositories" role="tabpanel" aria-labelledby="tab-repositories" tabindex="0">
           <div class="pane-action-bar">
             <div class="search-filter-group">
               <div class="search-box">
@@ -387,9 +425,17 @@
         </section>
 
         <!-- ==================== TAB: STORAGE (LVM) ==================== -->
-        <section class="tab-pane" id="pane-storage">
+        <section class="tab-pane" id="pane-storage" role="tabpanel" aria-labelledby="tab-storage" tabindex="0">
+          <div class="card empty-state lvm-empty-state" id="lvmEmptyState" hidden>
+            <div class="empty-state-icon-ring">
+              <i class="fa-solid fa-hard-drive empty-state-icon"></i>
+            </div>
+            <div class="empty-state-title">LVM storage is not configured</div>
+            <div class="empty-state-desc" id="lvmEmptyMessage">Configure the vg_dev volume group to view storage details.</div>
+          </div>
+
           <!-- Architecture Flow Diagram Card -->
-          <div class="card lvm-architecture-card">
+          <div class="card lvm-architecture-card" id="lvmArchitectureCard">
             <div class="card-header">
               <div class="card-title">
                 <i class="fa-solid fa-diagram-project"></i>
@@ -475,7 +521,7 @@
           </div>
 
           <!-- LVM Extend Interactive Console Card -->
-          <div class="card">
+          <div class="card" id="lvmExtendCard">
             <div class="card-header">
               <div class="card-title">
                 <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
@@ -550,7 +596,7 @@
         </section>
 
         <!-- ==================== TAB: AUTOMATION ==================== -->
-        <section class="tab-pane" id="pane-automation">
+        <section class="tab-pane" id="pane-automation" role="tabpanel" aria-labelledby="tab-automation" tabindex="0">
           <div class="automation-grid">
             <!-- Cron Jobs Timeline -->
             <div class="card flex-2">
@@ -654,7 +700,7 @@
         </section>
 
         <!-- ==================== TAB: BACKUPS ==================== -->
-        <section class="tab-pane" id="pane-backups">
+        <section class="tab-pane" id="pane-backups" role="tabpanel" aria-labelledby="tab-backups" tabindex="0">
           <div class="pane-action-bar">
             <div class="retention-info-badge">
               <i class="fa-solid fa-shield-halved text-teal"></i>
@@ -687,7 +733,7 @@
         </section>
 
         <!-- ==================== TAB: LOGS ==================== -->
-        <section class="tab-pane" id="pane-logs">
+        <section class="tab-pane" id="pane-logs" role="tabpanel" aria-labelledby="tab-logs" tabindex="0">
           <div class="logs-container-card card">
             <div class="logs-toolbar">
               <div class="log-tabs">
@@ -733,6 +779,141 @@
             <div class="log-viewer-footer">
               <span id="logStatsText">Showing 50 lines from /var/log/devserver/activity.log</span>
               <span class="text-muted"><i class="fa-solid fa-circle text-rose"></i> Red highlighting indicates threshold alerts</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== TAB: ABOUT / ARCHITECTURE ==================== -->
+        <section class="tab-pane" id="pane-architecture" role="tabpanel" aria-labelledby="tab-architecture" tabindex="0">
+          <div class="card architecture-intro">
+            <div class="card-header">
+              <div class="card-title">
+                <i class="fa-solid fa-diagram-project"></i>
+                <h3>How the dashboard works</h3>
+              </div>
+              <span class="card-tag">Browser → Flask → Linux</span>
+            </div>
+            <div class="card-body">
+              <p class="architecture-summary">The browser calls a localhost-only Flask API. The API validates requests, runs whitelisted Linux commands, and delegates cleanup and backup work to the existing Bash scripts; cron can schedule the monitoring script independently.</p>
+              <div class="architecture-diagram-wrap">
+                <svg class="architecture-diagram" viewBox="0 0 1000 440" role="img" aria-labelledby="architectureDiagramTitle architectureDiagramDesc">
+                  <title id="architectureDiagramTitle">Dashboard request and execution flow</title>
+                  <desc id="architectureDiagramDesc">A browser sends HTTP JSON requests to the Flask API. The API delegates cleanup and backup operations to existing Bash scripts, while cron can schedule the monitoring script. Scripts and the Flask API operate on Linux users, LVM storage, cron, Git repositories, and tar archives. The Flask API runs whitelisted Linux commands directly.</desc>
+                  <defs>
+                    <marker id="architectureArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                      <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+                    </marker>
+                  </defs>
+                  <path class="architecture-flow" d="M 224 220 H 278" marker-end="url(#architectureArrow)"></path>
+                  <path class="architecture-flow" d="M 484 220 H 538" marker-end="url(#architectureArrow)"></path>
+                  <path class="architecture-flow" d="M 724 220 H 778" marker-end="url(#architectureArrow)"></path>
+                  <path class="architecture-direct-flow" d="M 390 100 C 490 28, 710 28, 840 100" marker-end="url(#architectureArrow)"></path>
+                  <text class="architecture-flow-label" x="606" y="47" text-anchor="middle">whitelisted commands</text>
+
+                  <g class="architecture-node architecture-node-browser">
+                    <rect x="24" y="118" width="200" height="204" rx="16"></rect>
+                    <circle class="architecture-node-icon-bg" cx="124" cy="166" r="25"></circle>
+                    <text class="architecture-node-icon" x="124" y="173" text-anchor="middle">01</text>
+                    <text class="architecture-node-title" x="124" y="222" text-anchor="middle">Browser</text>
+                    <text class="architecture-node-copy" x="124" y="252" text-anchor="middle">Dashboard UI</text>
+                    <text class="architecture-node-copy" x="124" y="274" text-anchor="middle">HTTP JSON · localhost:5000</text>
+                  </g>
+
+                  <g class="architecture-node architecture-node-api">
+                    <rect x="284" y="118" width="200" height="204" rx="16"></rect>
+                    <circle class="architecture-node-icon-bg" cx="384" cy="166" r="25"></circle>
+                    <text class="architecture-node-icon" x="384" y="173" text-anchor="middle">02</text>
+                    <text class="architecture-node-title" x="384" y="222" text-anchor="middle">Flask API</text>
+                    <text class="architecture-node-copy" x="384" y="252" text-anchor="middle">Validation · JSON</text>
+                    <text class="architecture-node-copy" x="384" y="274" text-anchor="middle">Whitelisted subprocess</text>
+                  </g>
+
+                  <g class="architecture-node architecture-node-scripts">
+                    <rect x="544" y="118" width="180" height="204" rx="16"></rect>
+                    <circle class="architecture-node-icon-bg" cx="634" cy="166" r="25"></circle>
+                    <text class="architecture-node-icon" x="634" y="173" text-anchor="middle">03</text>
+                    <text class="architecture-node-title" x="634" y="222" text-anchor="middle">Bash scripts</text>
+                    <text class="architecture-node-copy" x="634" y="252" text-anchor="middle">monitor.sh</text>
+                    <text class="architecture-node-copy" x="634" y="274" text-anchor="middle">cleanup.sh · backup.sh</text>
+                  </g>
+
+                  <g class="architecture-node architecture-node-linux">
+                    <rect x="784" y="118" width="192" height="204" rx="16"></rect>
+                    <circle class="architecture-node-icon-bg" cx="880" cy="166" r="25"></circle>
+                    <text class="architecture-node-icon" x="880" y="173" text-anchor="middle">04</text>
+                    <text class="architecture-node-title" x="880" y="222" text-anchor="middle">Linux host</text>
+                    <text class="architecture-node-copy" x="880" y="252" text-anchor="middle">Users · LVM · cron</text>
+                    <text class="architecture-node-copy" x="880" y="274" text-anchor="middle">Git repositories · tar</text>
+                  </g>
+
+                  <text class="architecture-flow-label" x="250" y="205" text-anchor="middle">HTTP / JSON</text>
+                  <text class="architecture-flow-label" x="510" y="205" text-anchor="middle">cleanup / backup</text>
+                  <text class="architecture-flow-label" x="750" y="205" text-anchor="middle">host resources</text>
+                  <text class="architecture-note" x="500" y="386" text-anchor="middle">Cleanup and backup use existing scripts; cron schedules monitoring; other API features call approved host commands directly.</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">
+                <i class="fa-solid fa-list-check"></i>
+                <h3>Dashboard features → Linux commands</h3>
+              </div>
+              <span class="card-tag">Production mode</span>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table architecture-table">
+                <thead>
+                  <tr>
+                    <th>Dashboard feature</th>
+                    <th>What it does</th>
+                    <th>Linux commands / files</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Overview &amp; health</td>
+                    <td>Load, memory, uptime, sessions, disk, and alert telemetry</td>
+                    <td><code>/proc/loadavg</code>, <code>/proc/meminfo</code>, <code>uptime</code>, <code>who</code>, <code>df</code>, <code>getent</code></td>
+                  </tr>
+                  <tr>
+                    <td>Developer accounts</td>
+                    <td>List, create, lock, unlock, and remove developer users</td>
+                    <td><code>getent</code>, <code>lastlog</code>, <code>useradd</code>, <code>chpasswd</code>, <code>chage</code>, <code>usermod</code>, <code>userdel</code>, <code>id</code></td>
+                  </tr>
+                  <tr>
+                    <td>Shared repositories</td>
+                    <td>Inspect and initialize shared bare Git repositories</td>
+                    <td><code>git init --bare</code>, <code>du</code>, <code>stat</code>, <code>chgrp</code>, <code>chmod</code></td>
+                  </tr>
+                  <tr>
+                    <td>Storage (LVM)</td>
+                    <td>Inspect physical/volume groups and logical volumes; extend an LV</td>
+                    <td><code>pvs</code>, <code>vgs</code>, <code>lvs</code>, <code>lvextend -r</code>, <code>statvfs</code></td>
+                  </tr>
+                  <tr>
+                    <td>Automation &amp; cleanup</td>
+                    <td>Read scheduled jobs and preview or run disk cleanup</td>
+                    <td><code>/etc/cron.d/devserver</code>, <code>bash scripts/cleanup.sh --dry-run</code>, <code>bash scripts/cleanup.sh</code></td>
+                  </tr>
+                  <tr>
+                    <td>Backups</td>
+                    <td>Create verified archives and list existing backups</td>
+                    <td><code>bash scripts/backup.sh</code>, <code>tar</code>, <code>du</code>, <code>/srv/backups</code></td>
+                  </tr>
+                  <tr>
+                    <td>System logs</td>
+                    <td>Read recent activity and monitoring entries</td>
+                    <td><code>tail -n</code>, <code>/var/log/devserver/activity.log</code>, <code>/var/log/devserver/monitor.log</code></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card-body architecture-footnote">
+              <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+              <p>Commands are executed by the Flask backend with argument lists, not through a shell. The browser never runs host commands directly.</p>
             </div>
           </div>
         </section>

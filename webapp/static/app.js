@@ -1,12 +1,16 @@
 /**
- * DEV SERVER MANAGER — FRONTEND APPLICATION
+ * DEV SERVER MANAGER — FRONTEND APPLICATION (v2.0)
+ * Premium DevOps Console (Vercel / Linear / Grafana quality)
  * Vanilla JS, no build step, no npm.
- * DevOps console styling, Chart.js rolling telemetry, live Linux command terminal drawer.
+ * Dependency-free: Chart.js & FontAwesome via CDN.
  */
 
-// Global Application State
+// ============================================================================
+// GLOBAL APPLICATION STATE
+// ============================================================================
 const state = {
   activeTab: 'overview',
+  theme: 'dark',
   isPolling: true,
   pollIntervalMs: 5000,
   pollTimer: null,
@@ -14,6 +18,9 @@ const state = {
   systemMode: 'connecting',
   status: null,
   users: [],
+  usersLoaded: false,
+  usersError: '',
+  usersRequestId: 0,
   repos: [],
   lvm: null,
   cron: [],
@@ -36,6 +43,7 @@ const state = {
 // INITIALIZATION
 // ============================================================================
 document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
   initNavigation();
   initChart();
   initModals();
@@ -44,12 +52,136 @@ document.addEventListener('DOMContentLoaded', () => {
   initLogsViewer();
   initForms();
   initActionButtons();
+  initKeyboardShortcuts();
 
   // Initial Data Load
   loadAllData().then(() => {
     startAutoRefresh();
   });
 });
+
+// ============================================================================
+// THEME SYSTEM (LIGHT / DARK, KEPT IN APPLICATION MEMORY)
+// ============================================================================
+function initTheme() {
+  applyTheme(state.theme);
+
+  const toggleBtn = document.getElementById('themeToggleBtn');
+  toggleBtn?.addEventListener('click', () => {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+    const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    applyTheme(nextTheme);
+  });
+}
+
+function applyTheme(theme) {
+  state.theme = theme;
+  document.documentElement.setAttribute('data-theme', theme);
+  document.body.setAttribute('data-theme', theme);
+
+  if (theme === 'light') {
+    document.body.classList.remove('dark-theme');
+    document.body.classList.add('light-theme');
+  } else {
+    document.body.classList.remove('light-theme');
+    document.body.classList.add('dark-theme');
+  }
+
+  const icon = document.getElementById('themeIcon');
+  if (icon) {
+    icon.className = theme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+  }
+  const toggleBtn = document.getElementById('themeToggleBtn');
+  if (toggleBtn) {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    toggleBtn.setAttribute('aria-label', `Switch to ${nextTheme} theme`);
+    toggleBtn.setAttribute('title', `Switch to ${nextTheme} theme`);
+    toggleBtn.setAttribute('aria-pressed', String(theme === 'light'));
+  }
+
+  updateChartTheme(theme);
+}
+
+function updateChartTheme(theme) {
+  if (!state.chart) return;
+  const isLight = theme === 'light';
+  const gridColor = isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.05)';
+  const tooltipBg = isLight ? 'rgba(255, 255, 255, 0.97)' : 'rgba(11, 15, 25, 0.95)';
+  const tooltipBorder = isLight ? 'rgba(0, 0, 0, 0.12)' : 'rgba(255, 255, 255, 0.1)';
+  const tooltipTitle = isLight ? '#0F172A' : '#F1F5F9';
+  const tooltipBody = isLight ? '#334155' : '#E2E8F0';
+
+  if (state.chart.options?.scales?.y) {
+    state.chart.options.scales.y.grid.color = gridColor;
+  }
+  if (state.chart.options?.plugins?.tooltip) {
+    state.chart.options.plugins.tooltip.backgroundColor = tooltipBg;
+    state.chart.options.plugins.tooltip.borderColor = tooltipBorder;
+    state.chart.options.plugins.tooltip.titleColor = tooltipTitle;
+    state.chart.options.plugins.tooltip.bodyColor = tooltipBody;
+  }
+  state.chart.update('none');
+}
+
+// ============================================================================
+// KEYBOARD SHORTCUTS & ACCESSIBILITY
+// ============================================================================
+function initKeyboardShortcuts() {
+  window.addEventListener('keydown', (e) => {
+    // 1. ESC: Close open modals, or collapse terminal if open
+    if (e.key === 'Escape') {
+      const openModal = document.querySelector('.modal-overlay.open');
+      if (openModal) {
+        closeModal(openModal.id);
+        e.preventDefault();
+        return;
+      }
+      const drawer = document.getElementById('terminalDrawer');
+      if (drawer && drawer.classList.contains('expanded')) {
+        drawer.classList.remove('expanded');
+        drawer.classList.add('collapsed');
+        const chevron = document.getElementById('terminalChevron');
+        if (chevron) chevron.className = 'fa-solid fa-chevron-up';
+        e.preventDefault();
+        return;
+      }
+    }
+
+    // 2. Ctrl + ` (backtick) or Ctrl + J: Toggle terminal drawer
+    if ((e.ctrlKey && e.key === '`') || (e.ctrlKey && e.key.toLowerCase() === 'j')) {
+      e.preventDefault();
+      document.getElementById('terminalToggleBtn')?.click();
+      return;
+    }
+
+    // 3. Ctrl + K or '/' (when not typing in an input): focus search
+    if ((e.ctrlKey && e.key.toLowerCase() === 'k') || (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName))) {
+      e.preventDefault();
+      if (state.activeTab === 'developers') {
+        document.getElementById('devSearchInput')?.focus();
+      } else if (state.activeTab === 'repositories') {
+        document.getElementById('repoSearchInput')?.focus();
+      } else if (state.activeTab === 'logs') {
+        document.getElementById('logFilterInput')?.focus();
+      } else {
+        // Switch to developers and focus search
+        switchTab('developers');
+        setTimeout(() => document.getElementById('devSearchInput')?.focus(), 80);
+      }
+    }
+  });
+
+  // KPI card keyboard activation (Enter / Space)
+  const kpiDevCard = document.getElementById('kpiDevsCard');
+  if (kpiDevCard) {
+    kpiDevCard.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        switchTab('developers');
+      }
+    });
+  }
+}
 
 // ============================================================================
 // NAVIGATION & TABS
@@ -60,6 +192,15 @@ function initNavigation() {
   const pageTitle = document.getElementById('pageTitle');
   const pageSubtitle = document.getElementById('pageSubtitle');
 
+  navLinks.forEach(link => {
+    link.tabIndex = link.classList.contains('active') ? 0 : -1;
+  });
+  panes.forEach(pane => {
+    const isActive = pane.classList.contains('active');
+    pane.setAttribute('aria-hidden', String(!isActive));
+    if (!isActive) pane.setAttribute('hidden', 'true');
+  });
+
   const subtitles = {
     overview: 'Real-time telemetry, LVM storage topology & 40 developer accounts',
     developers: 'Manage developer accounts in group "developers" with password policies',
@@ -67,7 +208,8 @@ function initNavigation() {
     storage: 'LVM Volume Group (vg_dev) online volume expansion without downtime',
     automation: 'Crontab schedules in /etc/cron.d/devserver and automated disk cleanup',
     backups: 'Compressed archives in /srv/backups with verification and 7-day retention',
-    logs: 'Live system logs with threshold alert highlighting from /var/log/devserver/'
+    logs: 'Live system logs with threshold alert highlighting from /var/log/devserver/',
+    architecture: 'How the browser, Flask API, Bash scripts, and Linux host fit together'
   };
 
   const titles = {
@@ -77,23 +219,34 @@ function initNavigation() {
     storage: 'Storage Management (LVM)',
     automation: 'System Automation & Cleanup',
     backups: 'Backup & Disaster Recovery',
-    logs: 'System Logs'
+    logs: 'System Logs',
+    architecture: 'About / Architecture'
   };
 
-  function switchTab(tabId) {
+  window.switchTab = function(tabId) {
     if (!tabId || !titles[tabId]) tabId = 'overview';
     state.activeTab = tabId;
 
     navLinks.forEach(link => {
-      link.classList.toggle('active', link.dataset.tab === tabId);
+      const isActive = link.dataset.tab === tabId;
+      link.classList.toggle('active', isActive);
+      link.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      link.tabIndex = isActive ? 0 : -1;
     });
 
     panes.forEach(pane => {
-      pane.classList.toggle('active', pane.id === `pane-${tabId}`);
+      const isActive = pane.id === `pane-${tabId}`;
+      pane.classList.toggle('active', isActive);
+      pane.setAttribute('aria-hidden', String(!isActive));
+      if (isActive) {
+        pane.removeAttribute('hidden');
+      } else {
+        pane.setAttribute('hidden', 'true');
+      }
     });
 
-    pageTitle.textContent = titles[tabId];
-    pageSubtitle.textContent = subtitles[tabId];
+    if (pageTitle) pageTitle.textContent = titles[tabId];
+    if (pageSubtitle) pageSubtitle.textContent = subtitles[tabId];
     window.location.hash = tabId;
 
     // Trigger tab-specific refresh if needed
@@ -104,7 +257,31 @@ function initNavigation() {
 
     // Close mobile sidebar if open
     document.getElementById('sidebar')?.classList.remove('mobile-open');
-  }
+    document.getElementById('mobileMenuBtn')?.setAttribute('aria-expanded', 'false');
+  };
+
+  document.getElementById('navMenu')?.addEventListener('keydown', (e) => {
+    const currentIndex = Array.from(navLinks).findIndex(link => link === document.activeElement);
+    if (currentIndex < 0) return;
+
+    let nextIndex = currentIndex;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+      nextIndex = (currentIndex + 1) % navLinks.length;
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+      nextIndex = (currentIndex - 1 + navLinks.length) % navLinks.length;
+    } else if (e.key === 'Home') {
+      nextIndex = 0;
+    } else if (e.key === 'End') {
+      nextIndex = navLinks.length - 1;
+    } else {
+      return;
+    }
+
+    e.preventDefault();
+    const nextLink = navLinks[nextIndex];
+    window.switchTab(nextLink.dataset.tab);
+    nextLink.focus();
+  });
 
   navLinks.forEach(link => {
     link.addEventListener('click', (e) => {
@@ -128,7 +305,9 @@ function initNavigation() {
 
   // Mobile drawer toggle
   document.getElementById('mobileMenuBtn')?.addEventListener('click', () => {
-    document.getElementById('sidebar')?.classList.toggle('mobile-open');
+    const sidebar = document.getElementById('sidebar');
+    const isOpen = sidebar?.classList.toggle('mobile-open') || false;
+    document.getElementById('mobileMenuBtn')?.setAttribute('aria-expanded', String(isOpen));
   });
 
   // Handle direct hash navigation
@@ -195,9 +374,10 @@ async function pollTelemetry() {
       updateOverviewView(res.data);
       updateRollingChart(res.data.load, res.data.cores, res.data.mem_pct);
 
-      // Keep developer roster synced if count changes or list is empty
+      // Refresh the open directory continuously; elsewhere, refresh when its count changes.
       const devKpiCount = res.data.kpis?.developers ?? 0;
-      if (state.users.length === 0 || (devKpiCount > 0 && state.users.length !== devKpiCount)) {
+      if (state.activeTab === 'developers' || !state.usersLoaded ||
+          state.users.length !== devKpiCount) {
         await loadDevelopers();
       }
     }
@@ -209,22 +389,66 @@ async function pollTelemetry() {
 }
 
 async function loadDevelopers() {
-  try {
-    const usersRes = await apiRequest('/api/users');
-    if (usersRes.ok && Array.isArray(usersRes.data)) {
-      state.users = usersRes.data;
-      renderDevelopersTable();
-      renderOverviewDevsRoster();
-      const count = state.users.length;
-      const navCount = document.getElementById('navDevCount');
-      const kpiDev = document.getElementById('kpiDevs');
-      const badge = document.getElementById('overviewDevCountBadge');
-      if (navCount) navCount.textContent = count;
-      if (kpiDev) kpiDev.textContent = count;
-      if (badge) badge.textContent = `${count} Total`;
+  const requestId = ++state.usersRequestId;
+  const syncStatus = document.getElementById('developerSyncStatus');
+  if (!state.usersLoaded && syncStatus) {
+    syncStatus.classList.add('syncing');
+    syncStatus.querySelector('span:last-child').textContent = 'Loading accounts…';
+  }
+
+  const usersRes = await apiRequest('/api/users');
+  if (requestId !== state.usersRequestId) return;
+
+  if (!usersRes.ok || !Array.isArray(usersRes.data)) {
+    state.usersError = usersRes.error || 'The server returned an invalid developer list.';
+    if (syncStatus) {
+      syncStatus.classList.remove('syncing');
+      syncStatus.classList.add('sync-error');
+      const syncText = syncStatus.querySelector('span:last-child');
+      if (syncText && syncText.textContent !== 'Sync failed · retrying') {
+        syncText.textContent = 'Sync failed · retrying';
+      }
     }
-  } catch (err) {
-    console.error('Failed to load developers:', err);
+    if (!state.usersLoaded) renderDevelopersTable();
+    return;
+  }
+
+  state.users = usersRes.data;
+  state.usersLoaded = true;
+  state.usersError = '';
+  renderDevelopersTable();
+  renderOverviewDevsRoster();
+  updateDeveloperCounts();
+  if (syncStatus) {
+    syncStatus.classList.remove('syncing', 'sync-error');
+    const syncMessage = `Live · updates every ${state.pollIntervalMs / 1000}s`;
+    const syncText = syncStatus.querySelector('span:last-child');
+    if (syncText && syncText.textContent !== syncMessage) syncText.textContent = syncMessage;
+  }
+}
+
+function updateDeveloperCounts() {
+  const count = state.users.length;
+  const active = state.users.filter(user => user.status !== 'locked').length;
+  const locked = count - active;
+  const navCount = document.getElementById('navDevCount');
+  const kpiDev = document.getElementById('kpiDevs');
+  const badge = document.getElementById('overviewDevCountBadge');
+  const totalCount = document.getElementById('developerTotalCount');
+  const activeCount = document.getElementById('developerActiveCount');
+  const lockedCount = document.getElementById('developerLockedCount');
+  const statusFilter = document.getElementById('devStatusFilter');
+
+  if (navCount) navCount.textContent = count;
+  if (kpiDev) kpiDev.textContent = count;
+  if (badge) badge.textContent = `${count} Total`;
+  if (totalCount) totalCount.textContent = count;
+  if (activeCount) activeCount.textContent = active;
+  if (lockedCount) lockedCount.textContent = locked;
+  if (statusFilter) {
+    statusFilter.querySelector('option[value="all"]').textContent = `All accounts (${count})`;
+    statusFilter.querySelector('option[value="active"]').textContent = `Active (${active})`;
+    statusFilter.querySelector('option[value="locked"]').textContent = `Locked (${locked})`;
   }
 }
 
@@ -251,22 +475,32 @@ async function loadAllData() {
 
     if (usersRes.ok && Array.isArray(usersRes.data)) {
       state.users = usersRes.data;
+      state.usersLoaded = true;
+      state.usersError = '';
       renderDevelopersTable();
       renderOverviewDevsRoster();
-      const count = state.users.length;
-      const navCount = document.getElementById('navDevCount');
-      const kpiDev = document.getElementById('kpiDevs');
-      const badge = document.getElementById('overviewDevCountBadge');
-      if (navCount) navCount.textContent = count;
-      if (kpiDev) kpiDev.textContent = count;
-      if (badge) badge.textContent = `${count} Total`;
+      updateDeveloperCounts();
+    } else {
+      state.usersError = usersRes.error || 'The server returned an invalid developer list.';
+      const syncStatus = document.getElementById('developerSyncStatus');
+      if (syncStatus) {
+        syncStatus.classList.add('sync-error');
+        const syncText = syncStatus.querySelector('span:last-child');
+        if (syncText && syncText.textContent !== 'Sync failed · retrying') {
+          syncText.textContent = 'Sync failed · retrying';
+        }
+      }
+      renderDevelopersTable();
     }
 
     if (reposRes.ok) {
       state.repos = reposRes.data;
       renderRepositoriesGrid();
-      document.getElementById('navRepoCount').textContent = state.repos.length;
-      document.getElementById('kpiRepos').textContent = state.repos.length;
+      const repoCount = state.repos.length;
+      const navRepo = document.getElementById('navRepoCount');
+      const kpiRepo = document.getElementById('kpiRepos');
+      if (navRepo) navRepo.textContent = repoCount;
+      if (kpiRepo) kpiRepo.textContent = repoCount;
     }
 
     if (lvmRes.ok) {
@@ -343,26 +577,34 @@ function updateOverviewView(data) {
   const coresNum = Number(data.cores) || 1;
   const cpuPct = Math.min(100, Math.round((loadNum / coresNum) * 100));
 
-  cpuLoadVal.textContent = loadNum.toFixed(2);
-  cpuCoresLabel.textContent = `/ ${coresNum} Cores (${cpuPct}%)`;
+  if (cpuLoadVal) cpuLoadVal.textContent = loadNum.toFixed(2);
+  if (cpuCoresLabel) cpuCoresLabel.textContent = `/ ${coresNum} Cores (${cpuPct}%)`;
 
   // SVG Gauge calculation: 2 * PI * r = 2 * 3.14159 * 50 = 314.159
   const circumference = 314.16;
   const cpuOffset = circumference - (cpuPct / 100) * circumference;
-  cpuGauge.style.strokeDashoffset = cpuOffset;
+  if (cpuGauge) cpuGauge.style.strokeDashoffset = cpuOffset;
 
   if (loadNum > coresNum) {
-    cpuGauge.className = 'gauge-progress rose';
-    cpuBadge.className = 'badge badge-rose';
-    cpuBadge.textContent = 'High Load';
-    cpuStatusText.textContent = 'OVERLOAD';
-    cpuStatusText.className = 'text-rose font-mono';
+    if (cpuGauge) cpuGauge.className = 'gauge-progress rose';
+    if (cpuBadge) {
+      cpuBadge.className = 'badge badge-rose';
+      cpuBadge.textContent = 'High Load';
+    }
+    if (cpuStatusText) {
+      cpuStatusText.textContent = 'OVERLOAD';
+      cpuStatusText.className = 'text-rose font-mono';
+    }
   } else {
-    cpuGauge.className = 'gauge-progress';
-    cpuBadge.className = 'badge badge-teal';
-    cpuBadge.textContent = 'Nominal';
-    cpuStatusText.textContent = 'Healthy';
-    cpuStatusText.className = 'text-teal';
+    if (cpuGauge) cpuGauge.className = 'gauge-progress';
+    if (cpuBadge) {
+      cpuBadge.className = 'badge badge-teal';
+      cpuBadge.textContent = 'Nominal';
+    }
+    if (cpuStatusText) {
+      cpuStatusText.textContent = 'Healthy';
+      cpuStatusText.className = 'text-teal';
+    }
   }
 
   // 4. Memory Gauge
@@ -371,18 +613,22 @@ function updateOverviewView(data) {
   const memBadge = document.getElementById('memBadge');
   const memPct = Number(data.mem_pct) || 0;
 
-  memVal.textContent = `${memPct}%`;
+  if (memVal) memVal.textContent = `${memPct}%`;
   const memOffset = circumference - (memPct / 100) * circumference;
-  memGauge.style.strokeDashoffset = memOffset;
+  if (memGauge) memGauge.style.strokeDashoffset = memOffset;
 
   if (memPct >= 85) {
-    memGauge.className = 'gauge-progress rose';
-    memBadge.className = 'badge badge-rose';
-    memBadge.textContent = `${memPct}% ALERT`;
+    if (memGauge) memGauge.className = 'gauge-progress rose';
+    if (memBadge) {
+      memBadge.className = 'badge badge-rose';
+      memBadge.textContent = `${memPct}% ALERT`;
+    }
   } else {
-    memGauge.className = 'gauge-progress purple';
-    memBadge.className = 'badge badge-purple';
-    memBadge.textContent = `${memPct}% Allocated`;
+    if (memGauge) memGauge.className = 'gauge-progress purple';
+    if (memBadge) {
+      memBadge.className = 'badge badge-purple';
+      memBadge.textContent = `${memPct}% Allocated`;
+    }
   }
 
   // 5. Root Disk Gauge
@@ -392,18 +638,22 @@ function updateOverviewView(data) {
   const diskBadge = document.getElementById('diskBadge');
 
   const diskPct = rootDisk.use_pct || 0;
-  diskVal.textContent = `${diskPct}%`;
+  if (diskVal) diskVal.textContent = `${diskPct}%`;
   const diskOffset = circumference - (diskPct / 100) * circumference;
-  diskGauge.style.strokeDashoffset = diskOffset;
+  if (diskGauge) diskGauge.style.strokeDashoffset = diskOffset;
 
   if (diskPct >= 80) {
-    diskGauge.className = 'gauge-progress rose';
-    diskBadge.className = 'badge badge-rose';
-    diskBadge.textContent = `${diskPct}% ALERT`;
+    if (diskGauge) diskGauge.className = 'gauge-progress rose';
+    if (diskBadge) {
+      diskBadge.className = 'badge badge-rose';
+      diskBadge.textContent = `${diskPct}% ALERT`;
+    }
   } else {
-    diskGauge.className = 'gauge-progress blue';
-    diskBadge.className = 'badge badge-blue';
-    diskBadge.textContent = `${diskPct}% Used`;
+    if (diskGauge) diskGauge.className = 'gauge-progress blue';
+    if (diskBadge) {
+      diskBadge.className = 'badge badge-blue';
+      diskBadge.textContent = `${diskPct}% Used`;
+    }
   }
 
   // 6. Mount Points List
@@ -419,8 +669,8 @@ function updateOverviewView(data) {
       return `
         <div class="mount-item">
           <div class="mount-header">
-            <span class="mount-path"><i class="fa-solid fa-folder text-muted"></i> ${d.mount}</span>
-            <span class="mount-stats">${d.used} / ${d.size} (${d.use_pct}%)</span>
+            <span class="mount-path"><i class="fa-solid fa-folder text-muted"></i> ${escapeHtml(d.mount)}</span>
+            <span class="mount-stats">${escapeHtml(d.used)} / ${escapeHtml(d.size)} (${d.use_pct}%)</span>
           </div>
           <div class="progress-bar-wrap">
             <div class="progress-bar-fill ${fillClass}" style="width: ${d.use_pct}%"></div>
@@ -432,9 +682,12 @@ function updateOverviewView(data) {
 
   // 7. KPIs
   if (data.kpis) {
-    document.getElementById('kpiDevs').textContent = data.kpis.developers;
-    document.getElementById('kpiRepos').textContent = data.kpis.repositories;
-    document.getElementById('kpiCron').textContent = `${data.kpis.cron_jobs} Active`;
+    const kpiDevs = document.getElementById('kpiDevs');
+    const kpiRepos = document.getElementById('kpiRepos');
+    const kpiCron = document.getElementById('kpiCron');
+    if (kpiDevs) kpiDevs.textContent = data.kpis.developers;
+    if (kpiRepos) kpiRepos.textContent = data.kpis.repositories;
+    if (kpiCron) kpiCron.textContent = `${data.kpis.cron_jobs} Active`;
   }
 }
 
@@ -456,6 +709,11 @@ function initChart() {
   gradientPurple.addColorStop(0, 'rgba(168, 85, 247, 0.25)');
   gradientPurple.addColorStop(1, 'rgba(168, 85, 247, 0.00)');
 
+  const isLight = (document.documentElement.getAttribute('data-theme') || 'dark') === 'light';
+  const gridColor = isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.05)';
+  const tooltipBg = isLight ? 'rgba(255, 255, 255, 0.97)' : 'rgba(11, 15, 25, 0.95)';
+  const tooltipBorder = isLight ? 'rgba(0, 0, 0, 0.12)' : 'rgba(255, 255, 255, 0.1)';
+
   state.chart = new Chart(ctx, {
     type: 'line',
     data: {
@@ -468,7 +726,8 @@ function initChart() {
           backgroundColor: gradientTeal,
           borderWidth: 2,
           pointRadius: 0,
-          pointHoverRadius: 4,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: '#00F2FE',
           tension: 0.35,
           fill: true
         },
@@ -479,7 +738,8 @@ function initChart() {
           backgroundColor: gradientPurple,
           borderWidth: 2,
           pointRadius: 0,
-          pointHoverRadius: 4,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: '#a855f7',
           tension: 0.35,
           fill: true
         }
@@ -492,13 +752,14 @@ function initChart() {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: 'rgba(11, 15, 25, 0.95)',
-          titleFont: { family: 'JetBrains Mono', size: 11 },
+          backgroundColor: tooltipBg,
+          titleFont: { family: 'JetBrains Mono', size: 11, weight: '600' },
           bodyFont: { family: 'JetBrains Mono', size: 12 },
-          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderColor: tooltipBorder,
           borderWidth: 1,
           padding: 10,
-          displayColors: true
+          displayColors: true,
+          cornerRadius: 8
         }
       },
       scales: {
@@ -509,7 +770,7 @@ function initChart() {
         y: {
           min: 0,
           max: 100,
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          grid: { color: gridColor },
           ticks: {
             color: '#64748B',
             font: { family: 'JetBrains Mono', size: 10 },
@@ -542,7 +803,7 @@ function updateRollingChart(load, cores, memPct) {
   state.rollingData.mem.shift();
   state.rollingData.mem.push(mem);
 
-  state.chart.update('none'); // Update without full redraw animation for smoothness
+  state.chart.update('none'); // Update smoothly without full redraw flickers
 }
 
 // ============================================================================
@@ -555,9 +816,12 @@ function renderOverviewDevsRoster() {
   const users = state.users || [];
   if (users.length === 0) {
     container.innerHTML = `
-      <div class="text-muted p-3 text-center" style="grid-column: 1 / -1;">
-        <i class="fa-solid fa-users fa-2x mb-2 text-teal"></i>
-        <div>No developer accounts loaded yet.</div>
+      <div class="empty-state py-4" style="grid-column: 1 / -1;">
+        <div class="empty-state-icon-ring">
+          <i class="fa-solid fa-users empty-state-icon"></i>
+        </div>
+        <div class="empty-state-title">No developers loaded</div>
+        <div class="empty-state-desc">Waiting for developer account synchronization from system group "developers".</div>
       </div>
     `;
     return;
@@ -603,12 +867,55 @@ function renderDevelopersTable() {
     return matchSearch && matchFilter;
   });
 
+  updateDeveloperCounts();
+
   if (filtered.length === 0) {
+    if (!state.usersLoaded && state.usersError) {
+      tbody.innerHTML = `
+        <tr><td colspan="6">
+          <div class="empty-state">
+            <div class="empty-state-icon-ring"><i class="fa-solid fa-triangle-exclamation empty-state-icon"></i></div>
+            <div class="empty-state-title">Could not load developer accounts</div>
+            <div class="empty-state-desc">${escapeHtml(state.usersError)}</div>
+            <div class="empty-state-actions">
+              <button class="btn btn-secondary btn-sm" type="button" data-retry-developers>
+                <i class="fa-solid fa-arrows-rotate"></i> Retry
+              </button>
+            </div>
+          </div>
+        </td></tr>
+      `;
+      if (countEl) countEl.textContent = 'Developer account list unavailable';
+      return;
+    }
+
+    if (!state.usersLoaded) {
+      tbody.innerHTML = '<tr><td colspan="6"><div class="developer-loading"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading developer accounts…</div></td></tr>';
+      if (countEl) countEl.textContent = 'Loading developer accounts…';
+      return;
+    }
+
+    const hasFilter = search !== '' || filter !== 'all';
     tbody.innerHTML = `
       <tr>
-        <td colspan="6" class="text-center py-4 text-muted">
-          <i class="fa-solid fa-user-slash fa-2x mb-2"></i>
-          <div>No developer accounts matching criteria.</div>
+        <td colspan="6">
+          <div class="empty-state">
+            <div class="empty-state-icon-ring">
+              <i class="fa-solid fa-user-slash empty-state-icon"></i>
+            </div>
+            <div class="empty-state-title">${hasFilter ? 'No matching developer accounts' : 'No developer accounts found'}</div>
+            <div class="empty-state-desc">${hasFilter ? 'No accounts matched your search keyword or status filter. Try clearing filters or adding a new developer.' : 'The group "developers" currently has no active member accounts.'}</div>
+            <div class="empty-state-actions">
+              ${hasFilter ? `
+                <button class="btn btn-secondary btn-sm" onclick="resetDevFilters()">
+                  <i class="fa-solid fa-rotate-left"></i> Reset Filters
+                </button>
+              ` : ''}
+              <button class="btn btn-primary btn-sm" onclick="openModal('addDevModal')">
+                <i class="fa-solid fa-user-plus"></i> Add Developer
+              </button>
+            </div>
+          </div>
         </td>
       </tr>
     `;
@@ -626,10 +933,10 @@ function renderDevelopersTable() {
       : `<span class="badge badge-green"><i class="fa-solid fa-circle-check"></i> Active</span>`;
 
     const toggleActionBtn = isLocked
-      ? `<button class="btn btn-secondary btn-sm" onclick="handleToggleLock('${uname}', false)" title="Unlock Account">
+      ? `<button class="btn btn-secondary btn-sm" type="button" data-user-action="unlock" data-username="${escapeHtml(uname)}" aria-label="Unlock ${escapeHtml(uname)}" title="Unlock account">
            <i class="fa-solid fa-lock-open text-teal"></i> Unlock
          </button>`
-      : `<button class="btn btn-secondary btn-sm" onclick="handleToggleLock('${uname}', true)" title="Lock Account">
+      : `<button class="btn btn-secondary btn-sm" type="button" data-user-action="lock" data-username="${escapeHtml(uname)}" aria-label="Lock ${escapeHtml(uname)}" title="Lock account">
            <i class="fa-solid fa-lock text-amber"></i> Lock
          </button>`;
 
@@ -651,7 +958,7 @@ function renderDevelopersTable() {
         <td class="text-right">
           <div class="table-actions">
             ${toggleActionBtn}
-            <button class="btn btn-danger btn-sm" onclick="openDeleteUserModal('${uname}')" title="Delete Developer Account">
+            <button class="btn btn-danger btn-sm" type="button" data-user-action="delete" data-username="${escapeHtml(uname)}" aria-label="Delete ${escapeHtml(uname)}" title="Delete developer account">
               <i class="fa-solid fa-trash-can"></i>
             </button>
           </div>
@@ -665,35 +972,44 @@ function renderDevelopersTable() {
   }
 }
 
+window.resetDevFilters = function() {
+  const s = document.getElementById('devSearchInput');
+  const f = document.getElementById('devStatusFilter');
+  if (s) s.value = '';
+  if (f) f.value = 'all';
+  renderDevelopersTable();
+};
+
 function getInitials(name) {
   if (!name || typeof name !== 'string') return 'DV';
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
-  if (!name) return 'DV';
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 
-async function handleToggleLock(username, lock) {
+async function handleToggleLock(username, lock, button) {
   const action = lock ? 'lock' : 'unlock';
-  const res = await apiRequest(`/api/users/${username}/${action}`, 'POST');
+  if (button) button.disabled = true;
+  const res = await apiRequest(`/api/users/${encodeURIComponent(username)}/${action}`, 'POST');
 
   if (res.ok) {
     showToast('success', 'User Status Updated', `Account '${username}' has been ${action}ed.`);
     const u = state.users.find(x => x.username === username);
     if (u) u.status = lock ? 'locked' : 'active';
+    updateDeveloperCounts();
     renderDevelopersTable();
+    renderOverviewDevsRoster();
+    await loadDevelopers();
   } else {
     showToast('error', 'Action Failed', res.error || `Failed to ${action} user`);
+    if (button) button.disabled = false;
   }
 }
 
 function openDeleteUserModal(username) {
   state.pendingDeleteUser = username;
-  document.getElementById('deleteTargetUsername').textContent = username;
+  const targetLabel = document.getElementById('deleteTargetUsername');
+  if (targetLabel) targetLabel.textContent = username;
   openModal('deleteDevModal');
 }
 
@@ -708,11 +1024,24 @@ function renderRepositoriesGrid() {
   const filtered = state.repos.filter(r => r.name.toLowerCase().includes(search));
 
   if (filtered.length === 0) {
+    const hasSearch = search !== '';
     grid.innerHTML = `
-      <div class="card p-4 text-center text-muted" style="grid-column: 1 / -1;">
-        <i class="fa-brands fa-git-alt fa-3x mb-2 text-teal"></i>
-        <h3>No Repositories Found</h3>
-        <p class="text-sm">Click "Create Repository" above to initialize a new bare Git repository.</p>
+      <div class="empty-state" style="grid-column: 1 / -1;">
+        <div class="empty-state-icon-ring">
+          <i class="fa-brands fa-git-alt empty-state-icon"></i>
+        </div>
+        <div class="empty-state-title">${hasSearch ? 'No matching repositories' : 'No Repositories Found'}</div>
+        <div class="empty-state-desc">${hasSearch ? `No repository matches "${escapeHtml(search)}". Try clearing your search.` : 'No shared bare Git repositories found in /srv/repos. Initialize a repository to start collaborating.'}</div>
+        <div class="empty-state-actions">
+          ${hasSearch ? `
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('repoSearchInput').value=''; renderRepositoriesGrid();">
+              <i class="fa-solid fa-rotate-left"></i> Clear Search
+            </button>
+          ` : ''}
+          <button class="btn btn-primary btn-sm" onclick="openModal('addRepoModal')">
+            <i class="fa-solid fa-plus"></i> Create Repository
+          </button>
+        </div>
       </div>
     `;
     return;
@@ -733,20 +1062,20 @@ function renderRepositoriesGrid() {
         <div class="repo-stats-list">
           <div class="repo-stat-row">
             <span>Disk Size:</span>
-            <span>${r.size || '48 KB'}</span>
+            <span>${escapeHtml(r.size || '48 KB')}</span>
           </div>
           <div class="repo-stat-row">
             <span>Group Ownership:</span>
-            <span>${r.group || 'developers'}</span>
+            <span>${escapeHtml(r.group || 'developers')}</span>
           </div>
           <div class="repo-stat-row">
             <span>Permissions (setgid):</span>
-            <span>${r.mode || '2775'}</span>
+            <span>${escapeHtml(r.mode || '2775')}</span>
           </div>
         </div>
 
         <div class="clone-box">
-          <span class="clone-command-text" title="${cloneCmd}">${cloneCmd}</span>
+          <span class="clone-command-text" title="${cloneCmd}">${escapeHtml(cloneCmd)}</span>
           <button class="copy-btn" onclick="copyToClipboard('${cloneCmd}')" title="Copy Clone Command">
             <i class="fa-regular fa-copy"></i>
           </button>
@@ -770,19 +1099,47 @@ function copyToClipboard(text) {
 function renderLvmView() {
   if (!state.lvm) return;
   const lvm = state.lvm;
+  const emptyState = document.getElementById('lvmEmptyState');
+  const architectureCard = document.getElementById('lvmArchitectureCard');
+  const extendCard = document.getElementById('lvmExtendCard');
+
+  if (lvm.configured === false) {
+    if (emptyState) emptyState.hidden = false;
+    const message = document.getElementById('lvmEmptyMessage');
+    if (message) message.textContent = lvm.message || 'Configure the vg_dev volume group to view storage details.';
+    if (architectureCard) architectureCard.hidden = true;
+    if (extendCard) extendCard.hidden = true;
+    return;
+  }
+
+  if (emptyState) emptyState.hidden = true;
+  if (architectureCard) architectureCard.hidden = false;
+  if (extendCard) extendCard.hidden = false;
 
   // VG stats
-  const vgSize = lvm.vg?.size_mb || lvm.vg_size_mb || 3072;
+  const vgSize = lvm.vg?.size_mb ?? lvm.vg_size_mb ?? 3072;
   const vgFree = lvm.vg_free_mb !== undefined ? lvm.vg_free_mb : 614;
-  const vgUsed = vgSize - vgFree;
-  const usedPct = Math.round((vgUsed / vgSize) * 100);
+  const vgUsed = Math.max(0, vgSize - vgFree);
+  const usedPct = vgSize > 0 ? Math.min(100, Math.round((vgUsed / vgSize) * 100)) : 0;
   const freePct = 100 - usedPct;
 
-  document.getElementById('lvmVgSize').textContent = `${vgSize} MB`;
-  document.getElementById('lvmVgUsedMb').textContent = `${vgUsed} MB`;
-  document.getElementById('lvmVgFreeMb').textContent = `${vgFree} MB`;
-  document.getElementById('lvmVgBarUsed').style.width = `${usedPct}%`;
-  document.getElementById('lvmVgBarFree').style.width = `${freePct}%`;
+  const pvName = document.getElementById('lvmPvName');
+  const pvSize = document.getElementById('lvmPvSize');
+  const vgName = document.getElementById('lvmVgName');
+  const vgSizeEl = document.getElementById('lvmVgSize');
+  const vgUsedEl = document.getElementById('lvmVgUsedMb');
+  const vgFreeEl = document.getElementById('lvmVgFreeMb');
+  const vgBarUsed = document.getElementById('lvmVgBarUsed');
+  const vgBarFree = document.getElementById('lvmVgBarFree');
+
+  if (pvName) pvName.textContent = lvm.pv?.name || 'No physical volume';
+  if (pvSize) pvSize.textContent = lvm.pv?.size_mb ? `${lvm.pv.size_mb} MB` : '—';
+  if (vgName) vgName.textContent = lvm.vg?.name || 'vg_dev';
+  if (vgSizeEl) vgSizeEl.textContent = `${vgSize} MB`;
+  if (vgUsedEl) vgUsedEl.textContent = `${vgUsed} MB`;
+  if (vgFreeEl) vgFreeEl.textContent = `${vgFree} MB`;
+  if (vgBarUsed) vgBarUsed.style.width = `${usedPct}%`;
+  if (vgBarFree) vgBarFree.style.width = `${freePct}%`;
 
   // LVs stats
   const lvRepos = lvm.lvs?.find ? lvm.lvs.find(l => l.name === 'lv_repos') : lvm.lvs?.lv_repos;
@@ -792,28 +1149,49 @@ function renderLvmView() {
     const rSize = lvRepos.size_mb || 1536;
     const rUsed = lvRepos.used_mb || 420;
     const rPct = Math.round((rUsed / rSize) * 100);
-    document.getElementById('lvReposSize').textContent = `${rSize} MB`;
-    document.getElementById('lvReposProgress').style.width = `${rPct}%`;
-    document.getElementById('lvReposUsedText').textContent = `Used: ${rUsed} MB (${rPct}%)`;
+    const reposSizeEl = document.getElementById('lvReposSize');
+    const reposProgEl = document.getElementById('lvReposProgress');
+    const reposUsedEl = document.getElementById('lvReposUsedText');
+    if (reposSizeEl) reposSizeEl.textContent = `${rSize} MB`;
+    if (reposProgEl) reposProgEl.style.width = `${rPct}%`;
+    if (reposUsedEl) reposUsedEl.textContent = `Used: ${rUsed} MB (${rPct}%)`;
   }
 
   if (lvBackup) {
     const bSize = lvBackup.size_mb || 922;
     const bUsed = lvBackup.used_mb || 315;
     const bPct = Math.round((bUsed / bSize) * 100);
-    document.getElementById('lvBackupSize').textContent = `${bSize} MB`;
-    document.getElementById('lvBackupProgress').style.width = `${bPct}%`;
-    document.getElementById('lvBackupUsedText').textContent = `Used: ${bUsed} MB (${bPct}%)`;
+    const backupSizeEl = document.getElementById('lvBackupSize');
+    const backupProgEl = document.getElementById('lvBackupProgress');
+    const backupUsedEl = document.getElementById('lvBackupUsedText');
+    if (backupSizeEl) backupSizeEl.textContent = `${bSize} MB`;
+    if (backupProgEl) backupProgEl.style.width = `${bPct}%`;
+    if (backupUsedEl) backupUsedEl.textContent = `Used: ${bUsed} MB (${bPct}%)`;
   }
 
   // Update slider bounds & max label
   const slider = document.getElementById('extendMbSlider');
   const input = document.getElementById('extendMbInput');
   const maxLabel = document.getElementById('sliderMaxLabel');
+  const targetLv = document.getElementById('extendTargetLv');
+  const extendButton = document.getElementById('extendSubmitBtn');
+  const lvNames = new Set(Array.isArray(lvm.lvs) ? lvm.lvs.map(lv => lv.name) : []);
+  const hasLvData = lvNames.size > 0;
+
+  targetLv?.querySelectorAll('option').forEach(option => {
+    option.disabled = hasLvData && !lvNames.has(option.value);
+  });
+  if (extendButton) {
+    extendButton.disabled = vgFree <= 0 || !hasLvData;
+    extendButton.title = vgFree <= 0
+      ? 'No free space is available in vg_dev.'
+      : (!hasLvData ? 'No logical volumes are available to extend.' : '');
+  }
 
   if (slider && input && maxLabel) {
-    slider.max = Math.max(16, vgFree);
-    input.max = Math.max(16, vgFree);
+    const maxVal = Math.max(16, vgFree);
+    slider.max = maxVal;
+    input.max = maxVal;
     maxLabel.textContent = `Max available: ${vgFree} MB`;
     updateLvmPreview();
   }
@@ -846,6 +1224,12 @@ function initLvmControls() {
     const btn = document.getElementById('extendSubmitBtn');
     const lv = targetLv.value;
     const mb = parseInt(input.value, 10);
+    const availableVolumes = Array.isArray(state.lvm?.lvs) ? state.lvm.lvs.map(item => item.name) : [];
+
+    if (state.lvm?.configured === false || !availableVolumes.includes(lv)) {
+      showToast('error', 'Volume Unavailable', 'The selected logical volume is not configured on this system.');
+      return;
+    }
 
     if (isNaN(mb) || mb <= 0) {
       showToast('error', 'Invalid Input', 'Please enter a positive whole number for MB.');
@@ -917,7 +1301,20 @@ function updateLvmPreview() {
 // ============================================================================
 function renderCronTimeline() {
   const timeline = document.getElementById('cronTimeline');
-  if (!timeline || !state.cron || state.cron.length === 0) return;
+  if (!timeline) return;
+
+  if (!state.cron || state.cron.length === 0) {
+    timeline.innerHTML = `
+      <div class="empty-state py-4" style="grid-column: 1 / -1;">
+        <div class="empty-state-icon-ring">
+          <i class="fa-solid fa-clock-rotate-left empty-state-icon"></i>
+        </div>
+        <div class="empty-state-title">No Crontab Schedules Found</div>
+        <div class="empty-state-desc">No automated cron jobs detected in /etc/cron.d/devserver.</div>
+      </div>
+    `;
+    return;
+  }
 
   timeline.innerHTML = state.cron.map(c => `
     <div class="cron-card">
@@ -931,8 +1328,8 @@ function renderCronTimeline() {
         <code class="cron-command">${escapeHtml(c.command)}</code>
       </div>
       <div class="cron-meta">
-        <span class="badge badge-teal">${c.status || 'Active'}</span>
-        <span class="text-xs text-muted">User: ${c.user || 'root'}</span>
+        <span class="badge badge-teal">${escapeHtml(c.status || 'Active')}</span>
+        <span class="text-xs text-muted">User: ${escapeHtml(c.user || 'root')}</span>
       </div>
     </div>
   `).join('');
@@ -945,10 +1342,23 @@ function renderBackupsTable() {
   const tbody = document.getElementById('backupsTableBody');
   if (!tbody) return;
 
-  if (state.backups.length === 0) {
+  if (!state.backups || state.backups.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="5" class="text-center py-4 text-muted">No backup archives found in /srv/backups</td>
+        <td colspan="5">
+          <div class="empty-state">
+            <div class="empty-state-icon-ring">
+              <i class="fa-solid fa-box-archive empty-state-icon"></i>
+            </div>
+            <div class="empty-state-title">No Backups Found</div>
+            <div class="empty-state-desc">There are no archived backups in /srv/backups yet. Create your first automated archive now.</div>
+            <div class="empty-state-actions">
+              <button class="btn btn-primary btn-sm" onclick="document.getElementById('createBackupBtn').click()">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Backup Now
+              </button>
+            </div>
+          </div>
+        </td>
       </tr>
     `;
     return;
@@ -959,9 +1369,9 @@ function renderBackupsTable() {
       <td>
         <span class="font-mono text-highlight"><i class="fa-solid fa-file-zipper text-teal mr-2"></i> ${escapeHtml(b.filename)}</span>
       </td>
-      <td><span class="font-mono font-bold">${b.size}</span></td>
-      <td><span class="font-mono text-xs">${b.created}</span></td>
-      <td><span class="badge badge-green"><i class="fa-solid fa-check"></i> ${b.status || 'Verified tar.gz'}</span></td>
+      <td><span class="font-mono font-bold">${escapeHtml(b.size)}</span></td>
+      <td><span class="font-mono text-xs">${escapeHtml(b.created)}</span></td>
+      <td><span class="badge badge-green"><i class="fa-solid fa-check"></i> ${escapeHtml(b.status || 'Verified tar.gz')}</span></td>
       <td><span class="text-xs text-muted">/srv/repos, /etc/passwd, /etc/group</span></td>
     </tr>
   `).join('');
@@ -1020,7 +1430,15 @@ function renderLogEntries() {
   const filtered = state.logs.entries.filter(line => !filter || line.toLowerCase().includes(filter));
 
   if (filtered.length === 0) {
-    container.innerHTML = `<div class="text-muted p-3">No log entries matching filter criteria.</div>`;
+    container.innerHTML = `
+      <div class="empty-state py-4 text-center">
+        <div class="empty-state-icon-ring" style="width:40px;height:40px;font-size:16px;">
+          <i class="fa-solid fa-filter empty-state-icon"></i>
+        </div>
+        <div class="empty-state-title" style="font-size:14px;">No log lines matched filter</div>
+        <div class="empty-state-desc" style="font-size:12px;">Try adjusting your keyword filter or select a different log file above.</div>
+      </div>
+    `;
     return;
   }
 
@@ -1058,17 +1476,18 @@ function initTerminalDrawer() {
   const copyBtn = document.getElementById('copyTerminalBtn');
 
   function toggleDrawer(forceExpand = null) {
+    if (!drawer) return;
     const isCollapsed = drawer.classList.contains('collapsed');
     const shouldExpand = (forceExpand !== null) ? forceExpand : isCollapsed;
 
     if (shouldExpand) {
       drawer.classList.remove('collapsed');
       drawer.classList.add('expanded');
-      chevron.className = 'fa-solid fa-chevron-down';
+      if (chevron) chevron.className = 'fa-solid fa-chevron-down';
     } else {
       drawer.classList.remove('expanded');
       drawer.classList.add('collapsed');
-      chevron.className = 'fa-solid fa-chevron-up';
+      if (chevron) chevron.className = 'fa-solid fa-chevron-up';
     }
   }
 
@@ -1078,7 +1497,7 @@ function initTerminalDrawer() {
   });
 
   toggleBtn?.addEventListener('click', () => toggleDrawer());
-  collapseBtn?.addEventListener('click', () => toggleDrawer());
+  collapseBtn?.addEventListener('click', () => toggleDrawer(false));
 
   clearBtn?.addEventListener('click', () => {
     const history = document.getElementById('terminalHistory');
@@ -1155,18 +1574,23 @@ function initModals() {
 
   document.getElementById('openAddDevModalBtn')?.addEventListener('click', () => {
     openModal('addDevModal');
-    document.getElementById('devUsernameInput')?.focus();
+    setTimeout(() => document.getElementById('devUsernameInput')?.focus(), 80);
   });
 
   document.getElementById('openAddRepoModalBtn')?.addEventListener('click', () => {
     openModal('addRepoModal');
-    document.getElementById('repoNameInput')?.focus();
+    setTimeout(() => document.getElementById('repoNameInput')?.focus(), 80);
   });
 }
 
 function openModal(id) {
   const el = document.getElementById(id);
-  if (el) el.classList.add('open');
+  if (el) {
+    el.classList.add('open');
+    // Accessibility: find first input and focus
+    const firstInput = el.querySelector('input:not([disabled]), button:not([disabled])');
+    if (firstInput) setTimeout(() => firstInput.focus(), 80);
+  }
 }
 
 function closeModal(id) {
@@ -1184,12 +1608,14 @@ function initForms() {
   usernameInput?.addEventListener('input', () => {
     const val = usernameInput.value.trim();
     if (!val) {
-      feedback.style.display = 'none';
+      if (feedback) feedback.style.display = 'none';
     } else if (!usernameRegex.test(val)) {
-      feedback.textContent = 'Must start with lowercase letter and contain only letters, numbers, _ or -';
-      feedback.style.display = 'block';
+      if (feedback) {
+        feedback.textContent = 'Must start with lowercase letter and contain only letters, numbers, _ or -';
+        feedback.style.display = 'block';
+      }
     } else {
-      feedback.style.display = 'none';
+      if (feedback) feedback.style.display = 'none';
     }
   });
 
@@ -1217,13 +1643,7 @@ function initForms() {
       addDevForm.reset();
 
       // Refresh users
-      const uRes = await apiRequest('/api/users');
-      if (uRes.ok) {
-        state.users = uRes.data;
-        renderDevelopersTable();
-        document.getElementById('navDevCount').textContent = state.users.length;
-        document.getElementById('kpiDevs').textContent = state.users.length;
-      }
+      await loadDevelopers();
     } else {
       showToast('error', 'Creation Failed', res.error || 'Failed to create user');
     }
@@ -1241,8 +1661,10 @@ function initForms() {
     const btn = document.getElementById('saveRepoBtn');
 
     if (!repoRegex.test(rawName)) {
-      repoFeedback.textContent = 'Only letters, numbers, dots, dashes and underscores allowed.';
-      repoFeedback.style.display = 'block';
+      if (repoFeedback) {
+        repoFeedback.textContent = 'Only letters, numbers, dots, dashes and underscores allowed.';
+        repoFeedback.style.display = 'block';
+      }
       return;
     }
 
@@ -1262,8 +1684,11 @@ function initForms() {
       if (rRes.ok) {
         state.repos = rRes.data;
         renderRepositoriesGrid();
-        document.getElementById('navRepoCount').textContent = state.repos.length;
-        document.getElementById('kpiRepos').textContent = state.repos.length;
+        const rCount = state.repos.length;
+        const navRepo = document.getElementById('navRepoCount');
+        const kpiRepo = document.getElementById('kpiRepos');
+        if (navRepo) navRepo.textContent = rCount;
+        if (kpiRepo) kpiRepo.textContent = rCount;
       }
     } else {
       showToast('error', 'Creation Failed', res.error || 'Failed to create repository');
@@ -1279,7 +1704,7 @@ function initForms() {
     btn.disabled = true;
     btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Deleting...`;
 
-    const res = await apiRequest(`/api/users/${username}`, 'DELETE');
+    const res = await apiRequest(`/api/users/${encodeURIComponent(username)}`, 'DELETE');
     btn.disabled = false;
     btn.innerHTML = `<i class="fa-solid fa-trash-can"></i> <span>Delete Account</span>`;
 
@@ -1288,11 +1713,34 @@ function initForms() {
       closeModal('deleteDevModal');
       state.users = state.users.filter(u => u.username !== username);
       renderDevelopersTable();
-      document.getElementById('navDevCount').textContent = state.users.length;
-      document.getElementById('kpiDevs').textContent = state.users.length;
+      renderOverviewDevsRoster();
+      const count = state.users.length;
+      const navDevCount = document.getElementById('navDevCount');
+      const kpiDev = document.getElementById('kpiDevs');
+      if (navDevCount) navDevCount.textContent = count;
+      if (kpiDev) kpiDev.textContent = count;
+      updateDeveloperCounts();
     } else {
       showToast('error', 'Delete Failed', res.error || 'Failed to delete user');
     }
+  });
+
+  document.getElementById('devsTableBody')?.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    if (target.closest('[data-retry-developers]')) {
+      loadDevelopers();
+      return;
+    }
+
+    const actionButton = target.closest('[data-user-action]');
+    if (!(actionButton instanceof HTMLButtonElement)) return;
+    const { userAction, username } = actionButton.dataset;
+    if (!username) return;
+    if (userAction === 'lock') handleToggleLock(username, true, actionButton);
+    if (userAction === 'unlock') handleToggleLock(username, false, actionButton);
+    if (userAction === 'delete') openDeleteUserModal(username);
   });
 
   // Search and Filter Listeners
@@ -1314,14 +1762,14 @@ function initActionButtons() {
   pauseBtn?.addEventListener('click', () => {
     state.isPolling = !state.isPolling;
     if (state.isPolling) {
-      pauseIcon.className = 'fa-solid fa-pause';
-      livePill.className = 'live-status-pill';
-      liveText.textContent = 'LIVE (5s)';
+      if (pauseIcon) pauseIcon.className = 'fa-solid fa-pause';
+      if (livePill) livePill.className = 'live-status-pill';
+      if (liveText) liveText.textContent = 'LIVE (5s)';
       showToast('info', 'Live Refresh Resumed', 'Polling telemetry every 5 seconds.');
     } else {
-      pauseIcon.className = 'fa-solid fa-play';
-      livePill.className = 'live-status-pill paused';
-      liveText.textContent = 'PAUSED';
+      if (pauseIcon) pauseIcon.className = 'fa-solid fa-play';
+      if (livePill) livePill.className = 'live-status-pill paused';
+      if (liveText) liveText.textContent = 'PAUSED';
       showToast('info', 'Live Refresh Paused', 'Automatic polling paused.');
     }
   });
@@ -1380,13 +1828,13 @@ function initActionButtons() {
     const text = document.getElementById('backupBtnText');
 
     btn.disabled = true;
-    icon.className = 'fa-solid fa-spinner fa-spin';
-    text.textContent = 'Creating Backup...';
+    if (icon) icon.className = 'fa-solid fa-spinner fa-spin';
+    if (text) text.textContent = 'Creating Backup...';
 
     const res = await apiRequest('/api/backup', 'POST');
     btn.disabled = false;
-    icon.className = 'fa-solid fa-cloud-arrow-up';
-    text.textContent = 'Backup Now';
+    if (icon) icon.className = 'fa-solid fa-cloud-arrow-up';
+    if (text) text.textContent = 'Backup Now';
 
     if (res.ok) {
       showToast('success', 'Backup Complete', 'New verified backup created and retention policy verified.');
@@ -1395,7 +1843,8 @@ function initActionButtons() {
       if (bRes.ok) {
         state.backups = bRes.data;
         renderBackupsTable();
-        document.getElementById('kpiBackup').textContent = 'Just now';
+        const kpiBackup = document.getElementById('kpiBackup');
+        if (kpiBackup) kpiBackup.textContent = 'Just now';
       }
     } else {
       showToast('error', 'Backup Failed', res.error || 'Failed to create backup');
@@ -1423,7 +1872,7 @@ function showToast(type = 'info', title = '', message = '') {
       <div class="toast-title">${escapeHtml(title)}</div>
       <div class="toast-message">${escapeHtml(message)}</div>
     </div>
-    <button class="toast-close">&times;</button>
+    <button class="toast-close" aria-label="Close notification">&times;</button>
   `;
 
   toast.querySelector('.toast-close').addEventListener('click', () => {

@@ -15,6 +15,7 @@ import json
 import time
 import datetime
 import random
+import socket
 import subprocess
 from pathlib import Path
 from flask import Flask, jsonify, request, send_from_directory
@@ -25,6 +26,10 @@ WEBAPP_DIR = Path(__file__).resolve().parent
 STATIC_DIR = WEBAPP_DIR / "static"
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 USERS_FILE = PROJECT_ROOT / "users.txt"
+REPO_DIR = Path("/srv/repos")
+BACKUP_DIR = Path("/srv/backups")
+CRON_FILE = Path("/etc/cron.d/devserver")
+LOG_DIR = Path("/var/log/devserver")
 
 # Mode detection: force DEMO if env DEMO=1 or if not running on Linux / no root
 FORCE_DEMO = os.environ.get("DEMO", "").strip().lower() in ("1", "true", "yes")
@@ -45,6 +50,21 @@ COMMAND_WHITELIST = {
     "pvs", "vgs", "lvs", "lvextend", "git", "chgrp", "chmod", "tail",
     "cat", "bash", "ls", "du", "stat"
 }
+
+def count_cron_jobs(cron_file=None):
+    cron_file = cron_file or CRON_FILE
+    try:
+        with open(cron_file, "r", encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except FileNotFoundError:
+        return 0
+    return sum(
+        1 for line in lines
+        if line.strip()
+        and not line.lstrip().startswith("#")
+        and "=" not in line.split()[0]
+        and len(line.split(maxsplit=6)) >= 7
+    )
 
 # -----------------------------------------------------------------------------
 # In-Memory Demo State
@@ -214,6 +234,32 @@ def run_command(args, input_data=None, timeout=20):
         raw_output = f"{raw_output}\n{proc.stderr}".strip() if raw_output else proc.stderr.strip()
     return proc.returncode, cmd_str, raw_output
 
+def lvm_report(output, section):
+    """Parse an LVM JSON report, allowing diagnostic text around the JSON."""
+    start = output.find("{")
+    if start < 0:
+        raise ValueError("LVM command did not return a JSON report.")
+    report, _ = json.JSONDecoder().raw_decode(output[start:])
+    reports = report.get("report", [])
+    return reports[0].get(section, []) if reports else []
+
+def lvm_field(row, name):
+    value = row.get(name, "")
+    return value.strip() if isinstance(value, str) else value
+
+def bytes_to_mb(value):
+    return int(float(str(value).strip()) / (1024 * 1024))
+
+def empty_lvm_state(message):
+    return {
+        "configured": False,
+        "message": message,
+        "pv": None,
+        "vg": None,
+        "lvs": [],
+        "vg_free_mb": 0
+    }
+
 # -----------------------------------------------------------------------------
 # Frontend Routes
 # -----------------------------------------------------------------------------
@@ -280,7 +326,7 @@ def get_status():
                     "developers": len(demo_state["users"]),
                     "repositories": len(demo_state["repos"]),
                     "backups": len(demo_state["backups"]),
-                    "cron_jobs": 3
+                    "cron_jobs": count_cron_jobs()
                 }
             }
             cmd = "scripts/monitor.sh --dashboard"
@@ -353,8 +399,8 @@ def get_status():
             except Exception:
                 pass
 
-        repo_count = len(list(Path("/srv/repos").glob("*.git"))) if Path("/srv/repos").exists() else 0
-        backup_count = len(list(Path("/srv/backups").glob("backup_*.tar.gz"))) if Path("/srv/backups").exists() else 0
+        repo_count = len(list(REPO_DIR.glob("*.git"))) if REPO_DIR.is_dir() else 0
+        backup_count = len(list(BACKUP_DIR.glob("backup_*.tar.gz"))) if BACKUP_DIR.is_dir() else 0
 
         data = {
             "mode": "production",
@@ -669,24 +715,35 @@ def get_repos():
             )
             return make_json_response(ok=True, data=demo_state["repos"], command=cmd, output=out)
 
-        repo_dir = Path("/srv/repos")
-        if not repo_dir.exists():
-            return make_json_response(ok=True, data=[], command="ls -ld /srv/repos/*.git", output="No repo directory")
+        repo_dir = REPO_DIR
+        try:
+            repo_dir_stat = repo_dir.stat()
+        except FileNotFoundError:
+            return make_json_response(
+                ok=True,
+                data=[],
+                command="ls -ld /srv/repos/*.git",
+                output="Repository directory /srv/repos is not configured."
+            )
+        if not repo_dir_stat or not repo_dir.is_dir():
+            return make_json_response(ok=True, data=[], command="ls -ld /srv/repos/*.git", output="/srv/repos is not a directory.")
 
         repos = []
         for r in repo_dir.glob("*.git"):
             ret_s, _, s_out = run_command(["du", "-sh", str(r)])
             size_str = s_out.split()[0] if ret_s == 0 and s_out else "unknown"
 
-            ret_g, _, g_out = run_command(["stat", "-c", "%G", str(r)])
-            group_str = g_out.strip() if ret_g == 0 else "developers"
+            ret_g, _, g_out = run_command(["stat", "-c", "%G %a", str(r)])
+            stat_parts = g_out.split()
+            group_str = stat_parts[0] if ret_g == 0 and stat_parts else "unknown"
+            mode_str = stat_parts[1] if ret_g == 0 and len(stat_parts) > 1 else "unknown"
 
             repos.append({
                 "name": r.name,
                 "size": size_str,
                 "group": group_str,
-                "mode": "2775",
-                "clone_cmd": f"git clone ssh://<user>@{os.uname().nodename}/srv/repos/{r.name}"
+                "mode": mode_str,
+                "clone_cmd": f"git clone ssh://<user>@{socket.gethostname()}/srv/repos/{r.name}"
             })
         return make_json_response(ok=True, data=repos, command="ls -ld /srv/repos/*.git", output=f"Found {len(repos)} repositories")
     except Exception as e:
@@ -730,26 +787,49 @@ def create_repo():
             out = f"Initialized empty shared Git repository in /srv/repos/{repo_name}/\nGroup set to developers with setgid (2775)."
             return make_json_response(ok=True, data=new_repo, command=cmd, output=out)
 
-        repo_path = f"/srv/repos/{repo_name}"
+        repo_path = str(REPO_DIR / repo_name)
+        if not REPO_DIR.is_dir():
+            return make_json_response(
+                ok=False,
+                error="Repository directory /srv/repos is not configured or is not accessible.",
+                command=cmd,
+                status_code=409
+            )
         if Path(repo_path).exists():
             return make_json_response(ok=False, error=f"Repository '{repo_name}' already exists.", command=cmd, status_code=400)
 
         # 1. git init --bare --shared=group
         ret1, _, out1 = run_command(["git", "init", "--bare", "--shared=group", "-q", repo_path])
         if ret1 != 0:
-            return make_json_response(ok=False, error=f"git init failed: {out1}", command=cmd, status_code=500)
+            return make_json_response(ok=False, error=f"git init failed: {out1}", command=cmd, output=out1, status_code=500)
 
         # 2. chgrp -R developers
-        run_command(["chgrp", "-R", "developers", repo_path])
+        ret_group, _, out_group = run_command(["chgrp", "-R", "developers", repo_path])
+        if ret_group != 0:
+            return make_json_response(
+                ok=False,
+                error=f"Repository was created, but assigning it to the developers group failed: {out_group}",
+                command=cmd,
+                output=out_group,
+                status_code=500
+            )
         # 3. chmod -R 2775
-        run_command(["chmod", "-R", "2775", repo_path])
+        ret_mode, _, out_mode = run_command(["chmod", "-R", "2775", repo_path])
+        if ret_mode != 0:
+            return make_json_response(
+                ok=False,
+                error=f"Repository was created, but setting its permissions failed: {out_mode}",
+                command=cmd,
+                output=out_mode,
+                status_code=500
+            )
 
         new_repo = {
             "name": repo_name,
             "size": "48 KB",
             "group": "developers",
             "mode": "2775",
-            "clone_cmd": f"git clone ssh://<user>@{os.uname().nodename}{repo_path}"
+            "clone_cmd": f"git clone ssh://<user>@{socket.gethostname()}{repo_path}"
         }
         return make_json_response(ok=True, data=new_repo, command=cmd, output=f"Created shared bare repo {repo_path}")
     except Exception as e:
@@ -764,6 +844,8 @@ def get_lvm():
         if DEMO_MODE:
             lvm = demo_state["lvm"]
             data = {
+                "configured": True,
+                "message": "",
                 "pv": {
                     "name": lvm["pv_name"],
                     "size_mb": lvm["pv_size_mb"],
@@ -798,27 +880,128 @@ def get_lvm():
             out = json.dumps(data, indent=2)
             return make_json_response(ok=True, data=data, command=cmd, output=out)
 
-        # Production Execution
-        ret_v, cmd_v, out_v = run_command(["vgs", "--reportformat", "json", "vg_dev"])
-        ret_l, cmd_l, out_l = run_command(["lvs", "--reportformat", "json", "vg_dev"])
-        ret_p, cmd_p, out_p = run_command(["pvs", "--reportformat", "json"])
+        vg_cmd = ["vgs", "--reportformat", "json", "--units", "b", "--nosuffix", "-o", "vg_name,vg_size,vg_free", "vg_dev"]
+        try:
+            ret_v, _, out_v = run_command(vg_cmd)
+        except FileNotFoundError as e:
+            message = "LVM tools are not installed. Install the lvm2 package to inspect storage."
+            return make_json_response(ok=True, data=empty_lvm_state(message), command="vgs", output=str(e))
+        if ret_v != 0:
+            diagnostic = out_v.lower()
+            if any(message in diagnostic for message in (
+                "not found", "no volume groups found", "no volume group found",
+                "command not found", "not installed"
+            )):
+                message = (
+                    "LVM volume group 'vg_dev' is not configured. "
+                    "Initialize the server's LVM storage to enable volume details and resizing."
+                )
+                if "command not found" in diagnostic or "not installed" in diagnostic:
+                    message = "LVM tools are not installed. Install the lvm2 package to inspect storage."
+                return make_json_response(
+                    ok=True,
+                    data=empty_lvm_state(message),
+                    command=" ".join(vg_cmd),
+                    output=out_v or message
+                )
+            return make_json_response(
+                ok=False,
+                error=f"Unable to read LVM volume group 'vg_dev': {out_v or 'command failed'}",
+                command=" ".join(vg_cmd),
+                output=out_v,
+                status_code=500
+            )
 
-        vg_json = json.loads(out_v) if ret_v == 0 else {}
-        lvs_json = json.loads(out_l) if ret_l == 0 else {}
-        pvs_json = json.loads(out_p) if ret_p == 0 else {}
+        vg_rows = lvm_report(out_v, "vg")
+        vg_row = next((row for row in vg_rows if lvm_field(row, "vg_name") == "vg_dev"), None)
+        if not vg_row:
+            message = (
+                "LVM volume group 'vg_dev' is not configured. "
+                "Initialize the server's LVM storage to enable volume details and resizing."
+            )
+            return make_json_response(
+                ok=True,
+                data=empty_lvm_state(message),
+                command=" ".join(vg_cmd),
+                output=out_v or message
+            )
 
-        # Free space in MB
-        ret_f, _, out_f = run_command(["vgs", "--noheadings", "--units", "m", "--nosuffix", "-o", "vg_free", "vg_dev"])
-        free_mb = int(float(out_f.strip().split()[0])) if ret_f == 0 and out_f.strip() else 0
+        lv_cmd = ["lvs", "--reportformat", "json", "--units", "b", "--nosuffix", "-o", "lv_name,lv_size,lv_path", "vg_dev"]
+        pv_cmd = ["pvs", "--reportformat", "json", "--units", "b", "--nosuffix", "-o", "pv_name,pv_size,pv_free", "--select", "vg_name=vg_dev"]
+        try:
+            ret_l, _, out_l = run_command(lv_cmd)
+            ret_p, _, out_p = run_command(pv_cmd)
+        except FileNotFoundError as e:
+            message = "LVM tools are not installed or cannot be executed. Install the lvm2 package."
+            return make_json_response(ok=True, data=empty_lvm_state(message), command="lvs / pvs", output=str(e))
+        if ret_l != 0 or ret_p != 0:
+            failed_output = out_l if ret_l != 0 else out_p
+            return make_json_response(
+                ok=False,
+                error=f"Unable to read LVM volumes: {failed_output or 'command failed'}",
+                command=" ".join(lv_cmd if ret_l != 0 else pv_cmd),
+                output=failed_output,
+                status_code=500
+            )
+
+        lv_rows = lvm_report(out_l, "lv")
+        pv_rows = lvm_report(out_p, "pv")
+        vg_size_mb = bytes_to_mb(lvm_field(vg_row, "vg_size"))
+        free_mb = bytes_to_mb(lvm_field(vg_row, "vg_free"))
+        pvs = [
+            {
+                "name": lvm_field(row, "pv_name"),
+                "size_mb": bytes_to_mb(lvm_field(row, "pv_size")),
+                "free_mb": bytes_to_mb(lvm_field(row, "pv_free"))
+            }
+            for row in pv_rows
+        ]
+        pv = None
+        if pvs:
+            pv = {
+                "name": ", ".join(item["name"] for item in pvs),
+                "size_mb": sum(item["size_mb"] for item in pvs),
+                "free_mb": sum(item["free_mb"] for item in pvs)
+            }
+
+        mounts = {"lv_repos": "/srv/repos", "lv_backup": "/srv/backups"}
+        logical_volumes = []
+        for row in lv_rows:
+            name = lvm_field(row, "lv_name")
+            mount = mounts.get(name, "")
+            used_mb = 0
+            use_pct = 0
+            if mount and os.path.ismount(mount):
+                usage = os.statvfs(mount)
+                total_bytes = usage.f_blocks * usage.f_frsize
+                free_bytes = usage.f_bavail * usage.f_frsize
+                used_mb = max(0, (total_bytes - free_bytes) // (1024 * 1024))
+                use_pct = round((total_bytes - free_bytes) * 100 / total_bytes) if total_bytes else 0
+            logical_volumes.append({
+                "name": name,
+                "size_mb": bytes_to_mb(lvm_field(row, "lv_size")),
+                "mount": mount if os.path.ismount(mount) else "",
+                "used_mb": used_mb,
+                "use_pct": use_pct
+            })
 
         parsed = {
-            "pvs": pvs_json.get("report", [{}])[0].get("pv", []),
-            "vgs": vg_json.get("report", [{}])[0].get("vg", []),
-            "lvs": lvs_json.get("report", [{}])[0].get("lv", []),
+            "configured": True,
+            "message": "",
+            "pv": pv,
+            "vg": {
+                "name": lvm_field(vg_row, "vg_name"),
+                "size_mb": vg_size_mb,
+                "free_mb": free_mb,
+                "used_mb": max(0, vg_size_mb - free_mb),
+                "lv_count": len(lv_rows)
+            },
+            "lvs": logical_volumes,
             "vg_free_mb": free_mb
         }
-        cmd_combined = "vgs --reportformat json vg_dev && lvs --reportformat json vg_dev"
-        return make_json_response(ok=True, data=parsed, command=cmd_combined, output=out_v)
+        command = f"{' '.join(vg_cmd)} && {' '.join(lv_cmd)} && {' '.join(pv_cmd)}"
+        output = "\n".join(part for part in (out_v, out_l, out_p) if part)
+        return make_json_response(ok=True, data=parsed, command=command, output=output)
     except Exception as e:
         return make_json_response(ok=False, error=str(e), status_code=500)
 
@@ -859,11 +1042,38 @@ def extend_lvm():
             out = f"Size of logical volume vg_dev/{lv} changed from {lvm['lvs'][lv]['size_mb'] - mb}MB to {lvm['lvs'][lv]['size_mb']}MB.\nLogical volume vg_dev/{lv} successfully resized.\nresize2fs online resize complete. Free in VG: {lvm['vg_free_mb']}MB."
             return make_json_response(ok=True, data=lvm, command=cmd, output=out)
 
-        # Real Linux Execution
-        ret_f, _, out_f = run_command(["vgs", "--noheadings", "--units", "m", "--nosuffix", "-o", "vg_free", "vg_dev"])
+        # Confirm both the target LV and the available capacity before resizing.
+        ret_lv, _, out_lv = run_command(["lvs", "--noheadings", "-o", "lv_name", f"vg_dev/{lv}"])
+        if ret_lv != 0 or not any(name.strip() == lv for name in out_lv.splitlines()):
+            return make_json_response(
+                ok=False,
+                error=f"Logical volume 'vg_dev/{lv}' is not configured.",
+                command=cmd,
+                output=out_lv,
+                status_code=409
+            )
+
+        ret_f, _, out_f = run_command([
+            "vgs", "--noheadings", "--units", "b", "--nosuffix", "-o", "vg_free", "vg_dev"
+        ])
         if ret_f != 0:
-            return make_json_response(ok=False, error="Volume group 'vg_dev' not found.", command=cmd, status_code=400)
-        free_mb = int(float(out_f.strip().split()[0]))
+            return make_json_response(
+                ok=False,
+                error="Volume group 'vg_dev' is not configured. Configure LVM before extending a volume.",
+                command=cmd,
+                output=out_f,
+                status_code=409
+            )
+        try:
+            free_mb = bytes_to_mb(out_f.strip().split()[0])
+        except (IndexError, ValueError):
+            return make_json_response(
+                ok=False,
+                error=f"Could not parse free space for volume group 'vg_dev': {out_f}",
+                command=cmd,
+                output=out_f,
+                status_code=500
+            )
         if mb > free_mb:
             return make_json_response(ok=False, error=f"Only {free_mb} MB available in vg_dev.", command=cmd, status_code=400)
 
@@ -881,34 +1091,33 @@ def extend_lvm():
 @app.route("/api/cron", methods=["GET"])
 def get_cron():
     try:
-        cron_entries = [
-            {
-                "schedule": "*/5 * * * *",
-                "human_readable": "Every 5 minutes",
-                "command": "/srv/dev-server-manager/scripts/monitor.sh >/dev/null 2>&1",
-                "user": "root",
-                "purpose": "System health and threshold alerts monitoring",
-                "status": "Active"
-            },
-            {
-                "schedule": "0 2 * * *",
-                "human_readable": "Daily at 02:00",
-                "command": "/srv/dev-server-manager/scripts/backup.sh >> /var/log/devserver/backup.log 2>&1",
-                "user": "root",
-                "purpose": "Shared repositories & developer accounts backup with 7-day retention",
-                "status": "Active"
-            },
-            {
-                "schedule": "0 3 * * 0",
-                "human_readable": "Sundays at 03:00",
-                "command": "/srv/dev-server-manager/scripts/cleanup.sh >> /var/log/devserver/cleanup.log 2>&1",
-                "user": "root",
-                "purpose": "Automated disk cleanup and log compression",
-                "status": "Active"
-            }
-        ]
-
         if DEMO_MODE:
+            cron_entries = [
+                {
+                    "schedule": "*/5 * * * *",
+                    "human_readable": "Every 5 minutes",
+                    "command": "/srv/dev-server-manager/scripts/monitor.sh >/dev/null 2>&1",
+                    "user": "root",
+                    "purpose": "System health and threshold alerts monitoring",
+                    "status": "Active"
+                },
+                {
+                    "schedule": "0 2 * * *",
+                    "human_readable": "Daily at 02:00",
+                    "command": "/srv/dev-server-manager/scripts/backup.sh >> /var/log/devserver/backup.log 2>&1",
+                    "user": "root",
+                    "purpose": "Shared repositories & developer accounts backup with 7-day retention",
+                    "status": "Active"
+                },
+                {
+                    "schedule": "0 3 * * 0",
+                    "human_readable": "Sundays at 03:00",
+                    "command": "/srv/dev-server-manager/scripts/cleanup.sh >> /var/log/devserver/cleanup.log 2>&1",
+                    "user": "root",
+                    "purpose": "Automated disk cleanup and log compression",
+                    "status": "Active"
+                }
+            ]
             cmd = "cat /etc/cron.d/devserver"
             raw_cron = (
                 "# Dev Server Manager automation   (min hour day month weekday user command)\n"
@@ -920,8 +1129,10 @@ def get_cron():
             )
             return make_json_response(ok=True, data=cron_entries, command=cmd, output=raw_cron)
 
-        cron_file = Path("/etc/cron.d/devserver")
-        if not cron_file.exists():
+        cron_file = CRON_FILE
+        try:
+            cron_file.stat()
+        except FileNotFoundError:
             return make_json_response(ok=True, data=[], command="cat /etc/cron.d/devserver", output="Cron file not installed")
 
         with open(cron_file, "r") as f:
@@ -944,15 +1155,27 @@ def get_cron():
                     hr = "Daily at 02:00"
                 elif sched == "0 3 * * 0":
                     hr = "Sundays at 03:00"
+                script_name = Path(comm.split()[0]).name
+                purposes = {
+                    "monitor.sh": "System health and threshold alerts monitoring",
+                    "backup.sh": "Shared repositories and developer accounts backup",
+                    "cleanup.sh": "Automated disk cleanup and log compression"
+                }
                 parsed.append({
                     "schedule": sched,
                     "human_readable": hr,
                     "user": user,
                     "command": comm,
+                    "purpose": purposes.get(script_name, "Scheduled system task"),
                     "status": "Active"
                 })
 
-        return make_json_response(ok=True, data=parsed or cron_entries, command="cat /etc/cron.d/devserver", output=raw_content)
+        return make_json_response(
+            ok=True,
+            data=parsed,
+            command="cat /etc/cron.d/devserver",
+            output=raw_content or "No scheduled jobs are configured in /etc/cron.d/devserver."
+        )
     except Exception as e:
         return make_json_response(ok=False, error=str(e), status_code=500)
 
@@ -1059,9 +1282,13 @@ def get_backups():
             )
             return make_json_response(ok=True, data=demo_state["backups"], command=cmd, output=out)
 
-        backup_dir = Path("/srv/backups")
-        if not backup_dir.exists():
+        backup_dir = BACKUP_DIR
+        try:
+            backup_dir_stat = backup_dir.stat()
+        except FileNotFoundError:
             return make_json_response(ok=True, data=[], command="ls -lt /srv/backups/backup_*.tar.gz", output="No backup directory")
+        if not backup_dir_stat or not backup_dir.is_dir():
+            return make_json_response(ok=True, data=[], command="ls -lt /srv/backups/backup_*.tar.gz", output="/srv/backups is not a directory.")
 
         files = sorted(backup_dir.glob("backup_*.tar.gz"), key=lambda p: p.stat().st_mtime, reverse=True)
         backups = []
@@ -1114,8 +1341,10 @@ def get_logs():
             }
             return make_json_response(ok=True, data=data, command=cmd, output=out)
 
-        log_path = Path(f"/var/log/devserver/{log_type}.log")
-        if not log_path.exists():
+        log_path = LOG_DIR / f"{log_type}.log"
+        try:
+            log_path.stat()
+        except FileNotFoundError:
             return make_json_response(
                 ok=True,
                 data={"file": f"{log_type}.log", "lines_requested": lines_count, "lines_returned": 0, "entries": []},
@@ -1124,7 +1353,15 @@ def get_logs():
             )
 
         ret, _, out = run_command(["tail", "-n", str(lines_count), str(log_path)])
-        entries = out.splitlines() if ret == 0 else []
+        if ret != 0:
+            return make_json_response(
+                ok=False,
+                error=f"Unable to read {log_path}: {out or 'tail command failed'}",
+                command=cmd,
+                output=out,
+                status_code=500
+            )
+        entries = out.splitlines()
         data = {
             "file": f"{log_type}.log",
             "lines_requested": lines_count,
