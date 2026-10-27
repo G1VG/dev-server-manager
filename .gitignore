@@ -3,3 +3,8 @@
 *.tmp
 *~
 .vscode/
+.venv/
+__pycache__/
+*.pyc
+
+

@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dev Server Manager — DevOps Console</title>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- FontAwesome 6 Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="/static/style.css">
+  <!-- Chart.js 4.4 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body class="dark-theme">
+
+  <div class="app-container">
+    <!-- ==================== SIDEBAR ==================== -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">
+          <i class="fa-solid fa-server"></i>
+          <span class="pulse-indicator"></span>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-title">DevServer</h1>
+          <span class="brand-subtitle">Manager v2.0</span>
+        </div>
+      </div>
+
+      <div class="system-badge-container">
+        <div class="mode-badge" id="modeBadge">
+          <span class="mode-dot"></span>
+          <span id="modeText">CONNECTING...</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu" id="navMenu">
+        <a href="#overview" class="nav-item active" data-tab="overview">
+          <i class="fa-solid fa-gauge-high"></i>
+          <span>Overview</span>
+        </a>
+        <a href="#developers" class="nav-item" data-tab="developers">
+          <i class="fa-solid fa-users"></i>
+          <span>Developers</span>
+          <span class="nav-count" id="navDevCount">40</span>
+        </a>
+        <a href="#repositories" class="nav-item" data-tab="repositories">
+          <i class="fa-brands fa-git-alt"></i>
+          <span>Repositories</span>
+          <span class="nav-count" id="navRepoCount">3</span>
+        </a>
+        <a href="#storage" class="nav-item" data-tab="storage">
+          <i class="fa-solid fa-hard-drive"></i>
+          <span>Storage (LVM)</span>
+        </a>
+        <a href="#automation" class="nav-item" data-tab="automation">
+          <i class="fa-solid fa-clock-rotate-left"></i>
+          <span>Automation</span>
+        </a>
+        <a href="#backups" class="nav-item" data-tab="backups">
+          <i class="fa-solid fa-box-archive"></i>
+          <span>Backups</span>
+        </a>
+        <a href="#logs" class="nav-item" data-tab="logs">
+          <i class="fa-solid fa-terminal"></i>
+          <span>System Logs</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="server-status-card">
+          <div class="server-host"><i class="fa-solid fa-network-wired"></i> <span id="sidebarHostname">devserver.internal</span></div>
+          <div class="server-os">Ubuntu 24.04 LTS (40 Devs)</div>
+          <div class="server-uptime" id="sidebarUptime">Uptime: loading...</div>
+        </div>
+        <button class="terminal-trigger-btn" id="terminalToggleBtn" title="Toggle Linux Command Drawer">
+          <i class="fa-solid fa-terminal"></i>
+          <span>Command Drawer</span>
+          <span class="command-pulse" id="commandPulseDot"></span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ==================== MAIN CONTENT WRAPPER ==================== -->
+    <div class="main-wrapper">
+      <!-- Top App Header -->
+      <header class="top-header">
+        <div class="header-left">
+          <button class="mobile-toggle" id="mobileMenuBtn" aria-label="Toggle navigation">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <div class="page-title-group">
+            <h2 class="page-title" id="pageTitle">System Overview</h2>
+            <p class="page-subtitle" id="pageSubtitle">Real-time health, LVM storage & 40 developer accounts</p>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <!-- Live Indicator & Refresh Controls -->
+          <div class="live-status-pill" id="liveStatusPill">
+            <span class="live-pulse"></span>
+            <span class="live-text" id="liveStatusText">LIVE (5s)</span>
+          </div>
+
+          <button class="btn btn-icon" id="pauseRefreshBtn" title="Pause/Resume Auto-refresh">
+            <i class="fa-solid fa-pause" id="pauseIcon"></i>
+          </button>
+
+          <button class="btn btn-secondary btn-sm" id="manualRefreshBtn" title="Refresh Now">
+            <i class="fa-solid fa-arrows-rotate" id="refreshSpinner"></i>
+            <span>Refresh</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Tab Content Area -->
+      <main class="content-area">
+
+        <!-- ==================== TAB: OVERVIEW ==================== -->
+        <section class="tab-pane active" id="pane-overview">
+          <!-- Global Alert Banner -->
+          <div class="alert-banner healthy" id="overviewAlertBanner">
+            <div class="alert-banner-icon">
+              <i class="fa-solid fa-circle-check" id="alertBannerIcon"></i>
+            </div>
+            <div class="alert-banner-content">
+              <h4 class="alert-banner-title" id="alertBannerTitle">All Systems Healthy</h4>
+              <p class="alert-banner-desc" id="alertBannerDesc">CPU load, memory allocation, and disk partitions are all within nominal operational limits.</p>
+            </div>
+          </div>
+
+          <!-- KPI Cards Grid -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Developer Accounts</span>
+                <div class="kpi-icon-wrap teal"><i class="fa-solid fa-users"></i></div>
+              </div>
+              <div class="kpi-value" id="kpiDevs">40</div>
+              <div class="kpi-footer">
+                <span class="badge badge-teal">Group: developers</span>
+                <span class="kpi-subtext">Active quota</span>
+              </div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Shared Repositories</span>
+                <div class="kpi-icon-wrap blue"><i class="fa-brands fa-git-alt"></i></div>
+              </div>
+              <div class="kpi-value" id="kpiRepos">3</div>
+              <div class="kpi-footer">
+                <span class="badge badge-blue">Setgid 2775</span>
+                <span class="kpi-subtext">/srv/repos</span>
+              </div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Latest Verified Backup</span>
+                <div class="kpi-icon-wrap green"><i class="fa-solid fa-shield-halved"></i></div>
+              </div>
+              <div class="kpi-value kpi-value-sm" id="kpiBackup">Today 02:00</div>
+              <div class="kpi-footer">
+                <span class="badge badge-green">7-Day Retention</span>
+                <span class="kpi-subtext">Automated</span>
+              </div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Cron Automations</span>
+                <div class="kpi-icon-wrap purple"><i class="fa-solid fa-clock-rotate-left"></i></div>
+              </div>
+              <div class="kpi-value" id="kpiCron">3 Active</div>
+              <div class="kpi-footer">
+                <span class="badge badge-purple">/etc/cron.d/devserver</span>
+                <span class="kpi-subtext">Enabled</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Gauges & Telemetry Row -->
+          <div class="gauges-row">
+            <!-- CPU Load Card -->
+            <div class="gauge-card">
+              <div class="gauge-header">
+                <h3><i class="fa-solid fa-microchip"></i> CPU Load Average</h3>
+                <span class="badge" id="cpuBadge">Nominal</span>
+              </div>
+              <div class="gauge-body">
+                <div class="gauge-circle-wrap">
+                  <svg class="gauge-svg" viewBox="0 0 120 120">
+                    <circle class="gauge-bg" cx="60" cy="60" r="50"></circle>
+                    <circle class="gauge-progress" id="cpuGaugeProgress" cx="60" cy="60" r="50" stroke-dasharray="314.15" stroke-dashoffset="200"></circle>
+                  </svg>
+                  <div class="gauge-inner">
+                    <span class="gauge-number" id="cpuLoadVal">1.15</span>
+                    <span class="gauge-label" id="cpuCoresLabel">/ 4 Cores</span>
+                  </div>
+                </div>
+                <div class="gauge-details">
+                  <div class="metric-line"><span>Threshold</span><span class="mono">4.00</span></div>
+                  <div class="metric-line"><span>Status</span><span class="text-teal" id="cpuStatusText">Healthy</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Memory Gauge Card -->
+            <div class="gauge-card">
+              <div class="gauge-header">
+                <h3><i class="fa-solid fa-memory"></i> Memory Allocation</h3>
+                <span class="badge" id="memBadge">42% Used</span>
+              </div>
+              <div class="gauge-body">
+                <div class="gauge-circle-wrap">
+                  <svg class="gauge-svg" viewBox="0 0 120 120">
+                    <circle class="gauge-bg" cx="60" cy="60" r="50"></circle>
+                    <circle class="gauge-progress purple" id="memGaugeProgress" cx="60" cy="60" r="50" stroke-dasharray="314.15" stroke-dashoffset="182"></circle>
+                  </svg>
+                  <div class="gauge-inner">
+                    <span class="gauge-number" id="memVal">42%</span>
+                    <span class="gauge-label">RAM Active</span>
+                  </div>
+                </div>
+                <div class="gauge-details">
+                  <div class="metric-line"><span>Limit (MEM_LIMIT)</span><span class="mono">85%</span></div>
+                  <div class="metric-line"><span>Available</span><span class="text-purple" id="memAvailText">~4.6 GB</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Root Disk Gauge Card -->
+            <div class="gauge-card">
+              <div class="gauge-header">
+                <h3><i class="fa-solid fa-hard-drive"></i> Root Storage (/)</h3>
+                <span class="badge" id="diskBadge">42% Used</span>
+              </div>
+              <div class="gauge-body">
+                <div class="gauge-circle-wrap">
+                  <svg class="gauge-svg" viewBox="0 0 120 120">
+                    <circle class="gauge-bg" cx="60" cy="60" r="50"></circle>
+                    <circle class="gauge-progress blue" id="diskGaugeProgress" cx="60" cy="60" r="50" stroke-dasharray="314.15" stroke-dashoffset="182"></circle>
+                  </svg>
+                  <div class="gauge-inner">
+                    <span class="gauge-number" id="diskVal">42%</span>
+                    <span class="gauge-label">Used</span>
+                  </div>
+                </div>
+                <div class="gauge-details">
+                  <div class="metric-line"><span>Limit (DISK_LIMIT)</span><span class="mono">80%</span></div>
+                  <div class="metric-line"><span>Free Space</span><span class="text-blue" id="diskFreeText">~29 GB</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mount Points Table & Live Chart Row -->
+          <div class="overview-details-grid">
+            <!-- Mount Points Card -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">
+                  <i class="fa-solid fa-folder-tree"></i>
+                  <h3>Active Storage Mounts</h3>
+                </div>
+                <span class="card-tag">ext4 / LVM</span>
+              </div>
+              <div class="card-body">
+                <div class="mounts-list" id="mountsList">
+                  <!-- Populated dynamically via JS -->
+                  <div class="mount-item skeleton-mount"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Rolling Performance Chart Card -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">
+                  <i class="fa-solid fa-chart-line"></i>
+                  <h3>Live Telemetry (60-Point Rolling Window)</h3>
+                </div>
+                <div class="chart-legend-custom">
+                  <span class="legend-item"><span class="legend-color teal"></span> CPU Load (%)</span>
+                  <span class="legend-item"><span class="legend-color purple"></span> Memory (%)</span>
+                </div>
+              </div>
+              <div class="card-body chart-card-body">
+                <div class="chart-container">
+                  <canvas id="rollingChart"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== TAB: DEVELOPERS ==================== -->
+        <section class="tab-pane" id="pane-developers">
+          <div class="pane-action-bar">
+            <div class="search-filter-group">
+              <div class="search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="devSearchInput" placeholder="Search developer by username or name..." autocomplete="off">
+              </div>
+              <div class="select-filter">
+                <select id="devStatusFilter">
+                  <option value="all">All Accounts (40)</option>
+                  <option value="active">Active Only</option>
+                  <option value="locked">Locked Only</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn btn-primary" id="openAddDevModalBtn">
+              <i class="fa-solid fa-user-plus"></i>
+              <span>Add Developer</span>
+            </button>
+          </div>
+
+          <div class="card table-card">
+            <div class="table-responsive">
+              <table class="data-table" id="devsTable">
+                <thead>
+                  <tr>
+                    <th>Developer</th>
+                    <th>Full Name</th>
+                    <th>Primary Group</th>
+                    <th>Status</th>
+                    <th>Last Login</th>
+                    <th class="text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="devsTableBody">
+                  <!-- Dynamic rows -->
+                </tbody>
+              </table>
+            </div>
+            <div class="table-footer">
+              <span id="devTableCount">Showing 40 developers</span>
+              <span class="text-muted text-sm">Temporary password policy: Welcome@123 (chage -d 0)</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== TAB: REPOSITORIES ==================== -->
+        <section class="tab-pane" id="pane-repositories">
+          <div class="pane-action-bar">
+            <div class="search-filter-group">
+              <div class="search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="repoSearchInput" placeholder="Search repository name...">
+              </div>
+            </div>
+            <button class="btn btn-primary" id="openAddRepoModalBtn">
+              <i class="fa-solid fa-plus"></i>
+              <span>Create Repository</span>
+            </button>
+          </div>
+
+          <div class="repos-grid" id="reposGrid">
+            <!-- Dynamic repo cards -->
+          </div>
+        </section>
+
+        <!-- ==================== TAB: STORAGE (LVM) ==================== -->
+        <section class="tab-pane" id="pane-storage">
+          <!-- Architecture Flow Diagram Card -->
+          <div class="card lvm-architecture-card">
+            <div class="card-header">
+              <div class="card-title">
+                <i class="fa-solid fa-diagram-project"></i>
+                <h3>LVM Topology: Physical Volume ➔ Volume Group ➔ Logical Volumes</h3>
+              </div>
+              <span class="badge badge-teal">Online Resize Supported</span>
+            </div>
+            <div class="card-body">
+              <div class="lvm-diagram">
+                <!-- Tier 1: PV -->
+                <div class="lvm-block lvm-pv" id="lvmPvBlock">
+                  <div class="lvm-block-header">
+                    <span class="lvm-tag">PHYSICAL VOLUME</span>
+                    <i class="fa-solid fa-microchip"></i>
+                  </div>
+                  <div class="lvm-block-title" id="lvmPvName">/dev/loop0</div>
+                  <div class="lvm-block-metric">Size: <span id="lvmPvSize">3.00 GB</span></div>
+                  <div class="lvm-block-meta">Loop device virtual disk</div>
+                </div>
+
+                <div class="lvm-connector">
+                  <i class="fa-solid fa-arrow-right"></i>
+                </div>
+
+                <!-- Tier 2: VG -->
+                <div class="lvm-block lvm-vg" id="lvmVgBlock">
+                  <div class="lvm-block-header">
+                    <span class="lvm-tag">VOLUME GROUP</span>
+                    <i class="fa-solid fa-layer-group"></i>
+                  </div>
+                  <div class="lvm-block-title" id="lvmVgName">vg_dev</div>
+                  <div class="lvm-block-metric">Total: <span id="lvmVgSize">3072 MB</span></div>
+                  <div class="lvm-vg-bars">
+                    <div class="lvm-vg-bar-used" id="lvmVgBarUsed" style="width: 80%;"></div>
+                    <div class="lvm-vg-bar-free" id="lvmVgBarFree" style="width: 20%;"></div>
+                  </div>
+                  <div class="lvm-vg-stat-row">
+                    <span>Used: <strong id="lvmVgUsedMb">2458 MB</strong></span>
+                    <span class="text-teal">Free: <strong id="lvmVgFreeMb">614 MB</strong></span>
+                  </div>
+                </div>
+
+                <div class="lvm-connector">
+                  <i class="fa-solid fa-arrow-right"></i>
+                </div>
+
+                <!-- Tier 3: LVs -->
+                <div class="lvm-lvs-column">
+                  <div class="lvm-block lvm-lv" id="lvReposCard">
+                    <div class="lvm-block-header">
+                      <span class="lvm-tag">LOGICAL VOLUME</span>
+                      <span class="badge badge-teal" id="lvReposSize">1536 MB</span>
+                    </div>
+                    <div class="lvm-block-title">lv_repos</div>
+                    <div class="lvm-mount">Mount: <code>/srv/repos</code></div>
+                    <div class="progress-bar-wrap">
+                      <div class="progress-bar-fill" id="lvReposProgress" style="width: 28%;"></div>
+                    </div>
+                    <div class="lvm-lv-footer">
+                      <span id="lvReposUsedText">Used: 420 MB (28%)</span>
+                      <span class="text-muted">ext4</span>
+                    </div>
+                  </div>
+
+                  <div class="lvm-block lvm-lv" id="lvBackupCard">
+                    <div class="lvm-block-header">
+                      <span class="lvm-tag">LOGICAL VOLUME</span>
+                      <span class="badge badge-purple" id="lvBackupSize">922 MB</span>
+                    </div>
+                    <div class="lvm-block-title">lv_backup</div>
+                    <div class="lvm-mount">Mount: <code>/srv/backups</code></div>
+                    <div class="progress-bar-wrap">
+                      <div class="progress-bar-fill purple" id="lvBackupProgress" style="width: 35%;"></div>
+                    </div>
+                    <div class="lvm-lv-footer">
+                      <span id="lvBackupUsedText">Used: 315 MB (35%)</span>
+                      <span class="text-muted">ext4</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- LVM Extend Interactive Console Card -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">
+                <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
+                <h3>Grow Logical Volume Online (Zero Downtime)</h3>
+              </div>
+              <span class="card-tag">lvextend -r -L +&lt;mb&gt;M</span>
+            </div>
+            <div class="card-body">
+              <form id="lvmExtendForm" class="extend-form">
+                <div class="form-row">
+                  <div class="form-group flex-1">
+                    <label for="extendTargetLv">Select Target Volume</label>
+                    <select id="extendTargetLv" class="form-control">
+                      <option value="lv_repos">lv_repos (/srv/repos — Shared Git Repositories)</option>
+                      <option value="lv_backup">lv_backup (/srv/backups — Automated Backups)</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group flex-1">
+                    <label for="extendMbInput">Extension Amount (MB)</label>
+                    <div class="input-with-stepper">
+                      <input type="number" id="extendMbInput" class="form-control" value="256" min="16" max="614" step="16">
+                      <span class="input-unit">MB</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <div class="slider-label-row">
+                    <span>Quick Allocation Slider:</span>
+                    <span class="text-teal font-mono" id="sliderValueDisplay">+256 MB</span>
+                  </div>
+                  <input type="range" id="extendMbSlider" class="form-range" min="16" max="614" step="16" value="256">
+                  <div class="slider-range-limits">
+                    <span>16 MB</span>
+                    <span id="sliderMaxLabel">Max available: 614 MB</span>
+                  </div>
+                </div>
+
+                <!-- Live Before vs After Preview Card -->
+                <div class="preview-box">
+                  <div class="preview-title"><i class="fa-solid fa-wand-magic-sparkles"></i> Extension Impact Preview:</div>
+                  <div class="preview-metrics-grid">
+                    <div class="preview-metric">
+                      <span class="preview-metric-label">Target Volume</span>
+                      <span class="preview-metric-val" id="previewLvName">lv_repos</span>
+                    </div>
+                    <div class="preview-metric">
+                      <span class="preview-metric-label">Current Size</span>
+                      <span class="preview-metric-val" id="previewCurrentSize">1536 MB</span>
+                    </div>
+                    <div class="preview-metric">
+                      <span class="preview-metric-label">New Size After Growth</span>
+                      <span class="preview-metric-val text-teal" id="previewNewSize">1792 MB</span>
+                    </div>
+                    <div class="preview-metric">
+                      <span class="preview-metric-label">VG Free Space Remaining</span>
+                      <span class="preview-metric-val text-purple" id="previewNewFree">358 MB</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary" id="extendSubmitBtn">
+                    <i class="fa-solid fa-arrows-maximize"></i>
+                    <span>Grow Volume Online Now</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== TAB: AUTOMATION ==================== -->
+        <section class="tab-pane" id="pane-automation">
+          <div class="automation-grid">
+            <!-- Cron Jobs Timeline -->
+            <div class="card flex-2">
+              <div class="card-header">
+                <div class="card-title">
+                  <i class="fa-solid fa-clock"></i>
+                  <h3>Scheduled Cron Automations (/etc/cron.d/devserver)</h3>
+                </div>
+                <span class="badge badge-purple">cron service: active</span>
+              </div>
+              <div class="card-body">
+                <div class="cron-timeline" id="cronTimeline">
+                  <!-- Cron Card 1 -->
+                  <div class="cron-card">
+                    <div class="cron-time-badge">
+                      <i class="fa-solid fa-heart-pulse"></i>
+                      <span>*/5 * * * *</span>
+                    </div>
+                    <div class="cron-info">
+                      <h4>Health & Threshold Monitor</h4>
+                      <p class="cron-desc">Polls CPU load, memory %, disk utilization and raises alerts when limits are crossed.</p>
+                      <code class="cron-command">scripts/monitor.sh &gt;/dev/null 2&gt;&amp;1</code>
+                    </div>
+                    <div class="cron-meta">
+                      <span class="badge badge-teal">Every 5 minutes</span>
+                      <span class="text-xs text-muted">User: root</span>
+                    </div>
+                  </div>
+
+                  <!-- Cron Card 2 -->
+                  <div class="cron-card">
+                    <div class="cron-time-badge blue">
+                      <i class="fa-solid fa-box-archive"></i>
+                      <span>0 2 * * *</span>
+                    </div>
+                    <div class="cron-info">
+                      <h4>Automated Daily Backup</h4>
+                      <p class="cron-desc">Creates compressed tar of /srv/repos and accounts, verifies archive, enforces 7-day retention.</p>
+                      <code class="cron-command">scripts/backup.sh &gt;&gt; /var/log/devserver/backup.log 2&gt;&amp;1</code>
+                    </div>
+                    <div class="cron-meta">
+                      <span class="badge badge-blue">Daily at 02:00</span>
+                      <span class="text-xs text-muted">User: root</span>
+                    </div>
+                  </div>
+
+                  <!-- Cron Card 3 -->
+                  <div class="cron-card">
+                    <div class="cron-time-badge purple">
+                      <i class="fa-solid fa-broom"></i>
+                      <span>0 3 * * 0</span>
+                    </div>
+                    <div class="cron-info">
+                      <h4>Weekly System & Log Cleanup</h4>
+                      <p class="cron-desc">Purges temp files, compresses old logs (&gt;7d), runs apt-get clean, calculates freed space.</p>
+                      <code class="cron-command">scripts/cleanup.sh &gt;&gt; /var/log/devserver/cleanup.log 2&gt;&amp;1</code>
+                    </div>
+                    <div class="cron-meta">
+                      <span class="badge badge-purple">Sundays at 03:00</span>
+                      <span class="text-xs text-muted">User: root</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- On-Demand Cleanup Card -->
+            <div class="card flex-1">
+              <div class="card-header">
+                <div class="card-title">
+                  <i class="fa-solid fa-broom"></i>
+                  <h3>Disk Cleanup Control</h3>
+                </div>
+                <span class="card-tag">scripts/cleanup.sh</span>
+              </div>
+              <div class="card-body cleanup-card-body">
+                <p class="cleanup-explanation">
+                  Automated cleanup safely frees disk space across system and developer directories without touching active code repositories.
+                </p>
+                <ul class="cleanup-rules-list">
+                  <li><i class="fa-solid fa-check text-teal"></i> <code>/tmp</code> files older than 7 days</li>
+                  <li><i class="fa-solid fa-check text-teal"></i> <code>/var/tmp</code> files older than 30 days</li>
+                  <li><i class="fa-solid fa-check text-teal"></i> <code>/home/*/*.tmp</code>, <code>*~</code>, and <code>core</code></li>
+                  <li><i class="fa-solid fa-check text-teal"></i> Compress logs in <code>/var/log/devserver/</code></li>
+                  <li><i class="fa-solid fa-check text-teal"></i> Clear APT cache via <code>apt-get clean</code></li>
+                </ul>
+
+                <div class="cleanup-action-buttons">
+                  <button class="btn btn-secondary w-100" id="previewCleanupBtn">
+                    <i class="fa-solid fa-eye"></i>
+                    <span>Preview Cleanup (Dry Run)</span>
+                  </button>
+                  <button class="btn btn-primary w-100" id="runCleanupBtn">
+                    <i class="fa-solid fa-trash-can"></i>
+                    <span>Run Cleanup Now</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== TAB: BACKUPS ==================== -->
+        <section class="tab-pane" id="pane-backups">
+          <div class="pane-action-bar">
+            <div class="retention-info-badge">
+              <i class="fa-solid fa-shield-halved text-teal"></i>
+              <span>Automated 7-Day Retention: Backups verified with <code>tar -tzf</code></span>
+            </div>
+            <button class="btn btn-primary" id="createBackupBtn">
+              <i class="fa-solid fa-cloud-arrow-up" id="backupBtnIcon"></i>
+              <span id="backupBtnText">Backup Now</span>
+            </button>
+          </div>
+
+          <div class="card table-card">
+            <div class="table-responsive">
+              <table class="data-table" id="backupsTable">
+                <thead>
+                  <tr>
+                    <th>Archive Name</th>
+                    <th>Size</th>
+                    <th>Creation Date</th>
+                    <th>Integrity Verification</th>
+                    <th>Contents Covered</th>
+                  </tr>
+                </thead>
+                <tbody id="backupsTableBody">
+                  <!-- Dynamic backups rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== TAB: LOGS ==================== -->
+        <section class="tab-pane" id="pane-logs">
+          <div class="logs-container-card card">
+            <div class="logs-toolbar">
+              <div class="log-tabs">
+                <button class="log-tab-btn active" data-logfile="activity">
+                  <i class="fa-solid fa-list-check"></i>
+                  <span>activity.log</span>
+                </button>
+                <button class="log-tab-btn" data-logfile="monitor">
+                  <i class="fa-solid fa-heart-pulse"></i>
+                  <span>monitor.log</span>
+                </button>
+              </div>
+
+              <div class="log-controls">
+                <div class="search-box log-search">
+                  <i class="fa-solid fa-filter"></i>
+                  <input type="text" id="logFilterInput" placeholder="Filter log entries (e.g. ALERT, ok, INFO)...">
+                </div>
+
+                <select id="logLinesSelect" class="form-control-sm">
+                  <option value="25">25 lines</option>
+                  <option value="50" selected>50 lines</option>
+                  <option value="100">100 lines</option>
+                  <option value="200">200 lines</option>
+                </select>
+
+                <label class="checkbox-label" title="Auto-scroll to latest log entries">
+                  <input type="checkbox" id="logAutoScroll" checked>
+                  <span>Auto-scroll</span>
+                </label>
+
+                <button class="btn btn-icon btn-sm" id="refreshLogsBtn" title="Reload Log File">
+                  <i class="fa-solid fa-arrows-rotate"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="log-viewer-body" id="logViewerBody">
+              <div class="log-terminal-output" id="logOutput">
+                <!-- Log lines rendered here -->
+              </div>
+            </div>
+            <div class="log-viewer-footer">
+              <span id="logStatsText">Showing 50 lines from /var/log/devserver/activity.log</span>
+              <span class="text-muted"><i class="fa-solid fa-circle text-rose"></i> Red highlighting indicates threshold alerts</span>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ==================== COLLAPSIBLE TERMINAL DRAWER ==================== -->
+  <div class="terminal-drawer collapsed" id="terminalDrawer">
+    <div class="terminal-header" id="terminalHeader">
+      <div class="terminal-header-left">
+        <div class="terminal-dots">
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+        </div>
+        <div class="terminal-title">
+          <i class="fa-solid fa-terminal"></i>
+          <span>Linux Command Inspector</span>
+          <span class="terminal-subtext">(Displays raw shell execution for evaluation)</span>
+        </div>
+        <span class="terminal-status-badge" id="terminalStatusBadge">READY</span>
+      </div>
+
+      <div class="terminal-header-right">
+        <button class="term-btn" id="copyTerminalBtn" title="Copy Output to Clipboard">
+          <i class="fa-regular fa-copy"></i>
+          <span>Copy</span>
+        </button>
+        <button class="term-btn" id="clearTerminalBtn" title="Clear Console History">
+          <i class="fa-solid fa-eraser"></i>
+          <span>Clear</span>
+        </button>
+        <button class="term-btn toggle-arrow" id="collapseTerminalBtn" title="Expand / Collapse Drawer">
+          <i class="fa-solid fa-chevron-up" id="terminalChevron"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="terminal-body" id="terminalBody">
+      <div class="terminal-history" id="terminalHistory">
+        <div class="terminal-entry system-msg">
+          <span class="term-time">[System Initialized]</span>
+          <span class="term-text">Dev Server Manager connected. Linux commands triggered by UI buttons will stream here with raw stdout/stderr output.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- Add Developer Modal -->
+  <div class="modal-overlay" id="addDevModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-user-plus text-teal"></i> Add Developer Account</h3>
+        <button class="modal-close" data-modal="addDevModal">&times;</button>
+      </div>
+      <form id="addDevForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="devUsernameInput">Username <span class="required">*</span></label>
+            <input type="text" id="devUsernameInput" class="form-control" placeholder="e.g. dev41, alex, j_smith" required autocomplete="off">
+            <span class="form-hint">Regex: <code>^[a-z][a-z0-9_-]{1,31}$</code> (lowercase, starts with letter)</span>
+            <div class="invalid-feedback" id="devUsernameFeedback"></div>
+          </div>
+
+          <div class="form-group">
+            <label for="devFullnameInput">Full Name</label>
+            <input type="text" id="devFullnameInput" class="form-control" placeholder="e.g. Alex Morgan" autocomplete="off">
+          </div>
+
+          <div class="modal-notice">
+            <i class="fa-solid fa-circle-info text-teal"></i>
+            <div>
+              <strong>Default Policy:</strong> Account will be assigned to group <code>developers</code> with initial temporary password <code>Welcome@123</code>. The account is forced to set a new password on first login via <code>chage -d 0</code>.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-modal="addDevModal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="saveDevBtn">
+            <i class="fa-solid fa-check"></i>
+            <span>Create Developer</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Create Repository Modal -->
+  <div class="modal-overlay" id="addRepoModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3><i class="fa-brands fa-git-alt text-teal"></i> Create Shared Git Repository</h3>
+        <button class="modal-close" data-modal="addRepoModal">&times;</button>
+      </div>
+      <form id="addRepoForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="repoNameInput">Repository Name <span class="required">*</span></label>
+            <div class="input-with-suffix">
+              <input type="text" id="repoNameInput" class="form-control" placeholder="e.g. payment-gateway" required autocomplete="off">
+              <span class="input-suffix">.git</span>
+            </div>
+            <span class="form-hint">Regex: <code>^[A-Za-z0-9._-]+$</code> (Letters, digits, dash, underscore, dot)</span>
+            <div class="invalid-feedback" id="repoNameFeedback"></div>
+          </div>
+
+          <div class="modal-notice">
+            <i class="fa-solid fa-circle-info text-teal"></i>
+            <div>
+              <strong>Security Architecture:</strong> Will run <code>git init --bare --shared=group</code> in <code>/srv/repos/</code>, set group ownership to <code>developers</code>, and configure setgid permissions (<code>chmod 2775</code>) so team pushes inherit permissions cleanly.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-modal="addRepoModal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="saveRepoBtn">
+            <i class="fa-solid fa-plus"></i>
+            <span>Initialize Bare Repo</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Confirm Delete Developer Modal -->
+  <div class="modal-overlay" id="deleteDevModal">
+    <div class="modal-dialog modal-danger">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-triangle-exclamation text-rose"></i> Delete Developer Account</h3>
+        <button class="modal-close" data-modal="deleteDevModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to permanently delete developer account <strong id="deleteTargetUsername" class="text-rose">username</strong>?</p>
+        <p class="text-muted text-sm mt-2">
+          This command executes <code>userdel -r &lt;username&gt;</code>, removing their login credentials and home directory. System accounts (UID &lt; 1000) are automatically protected.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-modal="deleteDevModal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteDevBtn">
+          <i class="fa-solid fa-trash-can"></i>
+          <span>Delete Account</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cleanup Output Modal -->
+  <div class="modal-overlay" id="cleanupResultModal">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <h3 id="cleanupModalTitle"><i class="fa-solid fa-broom text-teal"></i> Cleanup Execution Report</h3>
+        <button class="modal-close" data-modal="cleanupResultModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <pre class="terminal-raw-box" id="cleanupRawOutput">Running cleanup...</pre>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-modal="cleanupResultModal">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Custom App JS -->
+  <script src="/static/app.js"></script>
+</body>
+</html>
