@@ -283,15 +283,16 @@ install_cron() {
 # Dev Server Manager automation   (min hour day month weekday user command)
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-*/5 * * * * root $SCRIPT_DIR/scripts/monitor.sh >/dev/null 2>&1
-0 2 * * *   root $SCRIPT_DIR/scripts/backup.sh  >> $LOG_DIR/backup.log 2>&1
-0 3 * * 0   root $SCRIPT_DIR/scripts/cleanup.sh >> $LOG_DIR/cleanup.log 2>&1
+*/5 * * * * root $SCRIPT_DIR/scripts/monitor.sh   >/dev/null 2>&1
+*/5 * * * * root $SCRIPT_DIR/scripts/auto_disk.sh >> $LOG_DIR/autodisk.log 2>&1
+0 2 * * *   root $SCRIPT_DIR/scripts/backup.sh    >> $LOG_DIR/backup.log 2>&1
+0 3 * * 0   root $SCRIPT_DIR/scripts/cleanup.sh   >> $LOG_DIR/cleanup.log 2>&1
 EOF
     chmod 644 /etc/cron.d/devserver
     systemctl enable --now cron >/dev/null 2>&1
     ok "Cron jobs installed:"
     grep -v '^#' /etc/cron.d/devserver | grep root
-    echo "  -> monitor every 5 min | backup daily 02:00 | cleanup Sundays 03:00"
+    echo "  -> monitor/auto-disk every 5 min | backup daily 02:00 | cleanup Sundays 03:00"
     log INFO "cron installed"
 }
 
@@ -338,6 +339,53 @@ full_setup() {
     ok "Server is fully configured."
 }
 
+# ================= 8. ADVANCED EVALUATOR FEATURES: AUTO DISK, DOCKER, LB =================
+auto_disk_menu() {
+    hdr "Auto Disk Management (LVM Auto-Grow + Emergency Cleanup)"
+    echo "  1) Check disk & LVM health status"
+    echo "  2) Run automated check & auto-grow now"
+    echo "  3) Simulate auto-grow trigger on lv_repos"
+    read -rp "  Choice [1-3]: " c
+    case "$c" in
+        1) run_script auto_disk.sh --status;;
+        2) run_script auto_disk.sh --check;;
+        3) run_script auto_disk.sh --test-grow;;
+        *) err "Invalid choice.";;
+    esac
+}
+
+docker_menu() {
+    hdr "Docker Dynamic Memory & LVM Storage"
+    echo "  1) Container status & dynamic memory metrics"
+    echo "  2) Start developer sandbox container (LVM bound)"
+    echo "  3) Scale container memory dynamically (live cgroups v2)"
+    echo "  4) View architecture & mechanics demo"
+    read -rp "  Choice [1-4]: " c
+    case "$c" in
+        1) run_script docker_manager.sh --status;;
+        2) run_script docker_manager.sh --start-sandbox;;
+        3) run_script docker_manager.sh --scale-mem;;
+        4) run_script docker_manager.sh --demo;;
+        *) err "Invalid choice.";;
+    esac
+}
+
+load_balancer_menu() {
+    hdr "Nginx Load Balancer & High Availability Cluster"
+    echo "  1) Cluster & load balancer status"
+    echo "  2) Start 3-node worker cluster + Nginx proxy"
+    echo "  3) Test traffic distribution (15 concurrent requests)"
+    echo "  4) Stop worker cluster"
+    read -rp "  Choice [1-4]: " c
+    case "$c" in
+        1) run_script load_balancer.sh --status;;
+        2) run_script load_balancer.sh --start-cluster;;
+        3) run_script load_balancer.sh --test-traffic;;
+        4) run_script load_balancer.sh --stop-cluster;;
+        *) err "Invalid choice.";;
+    esac
+}
+
 # ================================= MENU ==================================
 show_menu() {
     clear 2>/dev/null
@@ -361,14 +409,20 @@ show_menu() {
  17. Health dashboard        21. View / remove cron jobs
  18. Backup now
  19. Restore / inspect backup   22. FULL AUTO SETUP
- 20. View logs                   0. Exit
+ 20. View logs
+
+ ADVANCED / HIGH AVAILABILITY
+ 23. Auto disk management (LVM auto-grow & self-cleaning)
+ 24. Docker dynamic memory allocation & LVM integration
+ 25. Load balancer cluster (Nginx multi-worker proxy)
+  0. Exit
 ==========================================================
 EOF
 }
 
 while true; do
     show_menu
-    read -rp "Enter your choice [0-22]: " ch || { echo; echo "Goodbye!"; exit 0; }
+    read -rp "Enter your choice [0-25]: " ch || { echo; echo "Goodbye!"; exit 0; }
     echo
     case "$ch" in
         1) bulk_users;;       2) add_user;;        3) delete_user;;     4) list_devs;;
@@ -377,9 +431,10 @@ while true; do
         13) lvm_extend;;      14) run_script cleanup.sh --dry-run;;     15) run_script cleanup.sh;;
         16) install_cron;;    17) run_script monitor.sh --dashboard;;   18) backup_now;;
         19) restore_backup;;  20) view_logs;;      21) view_cron;;      22) full_setup;;
+        23) auto_disk_menu;;  24) docker_menu;;    25) load_balancer_menu;;
         0) echo "Goodbye!"; exit 0;;
-        "") err "You did not enter anything. Choose a number 0-22.";;
-        *)  err "Invalid choice '$ch'. Choose a number 0-22.";;
+        "") err "You did not enter anything. Choose a number 0-25.";;
+        *)  err "Invalid choice '$ch'. Choose a number 0-25.";;
     esac
     pause
 done

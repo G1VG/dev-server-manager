@@ -1,0 +1,130 @@
+version: '3.8'
+
+# ==============================================================================
+# Dev Server Manager - Enterprise High-Availability Stack
+# Implements:
+#   1. Load Balancing via Nginx across 3 app replicas.
+#   2. Dynamic Memory Allocation via Docker resource limits & reservations.
+#   3. Direct LVM Storage Integration (mounting host LVM volumes /srv/repos & /srv/backups).
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # Load Balancer Gateway (Nginx)
+  # ----------------------------------------------------------------------------
+  load-balancer:
+    image: nginx:alpine
+    container_name: devserver-lb
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/load_balancer.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - webapp-1
+      - webapp-2
+      - webapp-3
+    networks:
+      - devserver-net
+
+  # ----------------------------------------------------------------------------
+  # App Worker Replica 1 (Dynamic Memory Limits + LVM Volumes)
+  # ----------------------------------------------------------------------------
+  webapp-1:
+    build:
+      context: ./webapp
+      dockerfile: Dockerfile
+    container_name: devserver-app-1
+    restart: unless-stopped
+    environment:
+      - PORT=5001
+      - WORKER_ID=node-1
+    deploy:
+      resources:
+        limits:
+          memory: 512M      # Hard upper memory ceiling
+          cpus: '0.75'
+        reservations:
+          memory: 256M      # Guaranteed dynamic soft baseline
+    volumes:
+      - /srv/repos:/srv/repos:rw          # LVM Logical Volume (lv_repos)
+      - /srv/backups:/srv/backups:rw      # LVM Logical Volume (lv_backup)
+      - /var/log/devserver:/var/log/devserver:rw
+    networks:
+      - devserver-net
+
+  # ----------------------------------------------------------------------------
+  # App Worker Replica 2 (Dynamic Memory Limits + LVM Volumes)
+  # ----------------------------------------------------------------------------
+  webapp-2:
+    build:
+      context: ./webapp
+      dockerfile: Dockerfile
+    container_name: devserver-app-2
+    restart: unless-stopped
+    environment:
+      - PORT=5002
+      - WORKER_ID=node-2
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.75'
+        reservations:
+          memory: 256M
+    volumes:
+      - /srv/repos:/srv/repos:rw          # LVM Logical Volume (lv_repos)
+      - /srv/backups:/srv/backups:rw      # LVM Logical Volume (lv_backup)
+      - /var/log/devserver:/var/log/devserver:rw
+    networks:
+      - devserver-net
+
+  # ----------------------------------------------------------------------------
+  # App Worker Replica 3 (Dynamic Memory Limits + LVM Volumes)
+  # ----------------------------------------------------------------------------
+  webapp-3:
+    build:
+      context: ./webapp
+      dockerfile: Dockerfile
+    container_name: devserver-app-3
+    restart: unless-stopped
+    environment:
+      - PORT=5003
+      - WORKER_ID=node-3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.75'
+        reservations:
+          memory: 256M
+    volumes:
+      - /srv/repos:/srv/repos:rw          # LVM Logical Volume (lv_repos)
+      - /srv/backups:/srv/backups:rw      # LVM Logical Volume (lv_backup)
+      - /var/log/devserver:/var/log/devserver:rw
+    networks:
+      - devserver-net
+
+  # ----------------------------------------------------------------------------
+  # Developer Workspace Sandbox (Dynamic Memory Allocation Demo)
+  # ----------------------------------------------------------------------------
+  dev-sandbox:
+    image: ubuntu:22.04
+    container_name: devserver-dev-sandbox
+    command: sleep infinity
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1024M     # Dynamically expandable with: docker update --memory 2048M
+        reservations:
+          memory: 512M
+    volumes:
+      - /srv/repos:/workspace/repos:rw    # Direct LVM ext4 partition mapping
+    networks:
+      - devserver-net
+
+networks:
+  devserver-net:
+    driver: bridge
+

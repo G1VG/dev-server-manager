@@ -1376,11 +1376,13 @@ def get_logs():
 # Server Entrypoint
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", 5000))
     mode_str = "DEMO (simulated data, laptop-friendly)" if DEMO_MODE else "PRODUCTION (live Linux host)"
     print(f"============================================================")
     print(f" Dev Server Manager - Web Dashboard Backend")
     print(f" Running in: {mode_str}")
-    print(f" Binding to: http://127.0.0.1:5000")
+    print(f" Binding to: http://{host}:{port}")
     print(f" Serving UI: {STATIC_DIR}")
     print(f"============================================================")
-    app.run(host="127.0.0.1", port=5000, debug=False)
+    app.run(host=host, port=port, debug=False)

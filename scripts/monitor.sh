@@ -33,6 +33,7 @@ if [ "$1" = "--dashboard" ]; then
     echo
     echo "--- Disk usage (alert at ${DISK_LIMIT}%) ---"
     disks | while read -r use mp; do printf "  %-18s %s\n" "$mp" "$(bar "$use")"; done
+    echo "  Auto-Management : Enabled (Auto-grow at ${AUTO_EXTEND_THRESHOLD:-80}%, Emergency cleanup at ${EMERGENCY_CLEANUP_THRESHOLD:-90}%)"
     echo
     echo "--- Top 5 processes by CPU ---"
     ps -eo pid,user,%cpu,%mem,comm --sort=-%cpu | head -6

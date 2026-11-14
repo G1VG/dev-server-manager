@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dev Server Manager — Enterprise Presentation</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #111827;
+      --card-border: #1f293d;
+      --accent-blue: #38bdf8;
+      --accent-green: #34d399;
+      --accent-purple: #a78bfa;
+      --accent-amber: #fbbf24;
+      --accent-rose: #fb7185;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      --font-mono: 'JetBrains Mono', Consolas, Monaco, 'Courier New', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      user-select: none;
+    }
+
+    /* Presentation Deck Layout */
+    #deck-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 50% 20%, #151e36 0%, #080c14 100%);
+    }
+
+    .slide {
+      position: absolute;
+      width: 92vw;
+      max-width: 1320px;
+      height: 84vh;
+      max-height: 820px;
+      background: rgba(17, 24, 39, 0.85);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 40px 48px;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.96) translateY(20px);
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(12px);
+    }
+
+    .slide.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: scale(1) translateY(0);
+      z-index: 10;
+    }
+
+    /* Header & Footer */
+    .slide-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 16px;
+    }
+
+    .slide-tag {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-blue);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    .slide-title {
+      font-size: 1.85rem;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.02em;
+    }
+
+    .slide-subtitle {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .slide-num {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+    }
+
+    .slide-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      overflow-y: auto;
+      gap: 20px;
+    }
+
+    /* Grids & Cards */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+
+    .card:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .card h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #fff;
+    }
+
+    .card p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .card-stat {
+      font-size: 2.2rem;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      margin-bottom: 4px;
+      background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* Badges & Pills */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
+    .badge-blue {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-blue);
+    }
+
+    .badge-green {
+      background: rgba(52, 211, 153, 0.15);
+      color: var(--accent-green);
+    }
+
+    .badge-purple {
+      background: rgba(167, 139, 250, 0.15);
+      color: var(--accent-purple);
+    }
+
+    .badge-amber {
+      background: rgba(251, 191, 36, 0.15);
+      color: var(--accent-amber);
+    }
+
+    .badge-rose {
+      background: rgba(251, 113, 133, 0.15);
+      color: var(--accent-rose);
+    }
+
+    /* Code Blocks */
+    .code-box {
+      background: #060911;
+      border: 1px solid #1a2234;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-family: var(--font-mono);
+      font-size: 0.825rem;
+      color: #e2e8f0;
+      overflow-x: auto;
+      line-height: 1.45;
+    }
+
+    .code-box .cmd {
+      color: var(--accent-blue);
+      font-weight: 600;
+    }
+
+    .code-box .arg {
+      color: #a5b4fc;
+    }
+
+    .code-box .comment {
+      color: #64748b;
+      font-style: italic;
+    }
+
+    /* Tables */
+    .slide-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.825rem;
+    }
+
+    .slide-table th {
+      text-align: left;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.725rem;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .slide-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: #e2e8f0;
+    }
+
+    .slide-table tr:hover td {
+      background: rgba(56, 189, 248, 0.03);
+    }
+
+    /* Speaker Notes Drawer */
+    #speaker-notes-pane {
+      position: fixed;
+      bottom: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80vw;
+      max-width: 1000px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid var(--accent-amber);
+      border-radius: 12px;
+      padding: 16px 24px;
+      color: #fef3c7;
+      font-size: 0.875rem;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+      display: none;
+      line-height: 1.5;
+    }
+
+    #speaker-notes-pane.show {
+      display: block;
+    }
+
+    .notes-title {
+      font-weight: 700;
+      color: var(--accent-amber);
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Controls Bar */
+    #controls {
+      position: fixed;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(17, 24, 39, 0.9);
+      border: 1px solid var(--card-border);
+      border-radius: 9999px;
+      padding: 8px 18px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      backdrop-filter: blur(10px);
+      z-index: 50;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .ctrl-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      cursor: pointer;
+      font-size: 0.825rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .ctrl-btn:hover {
+      background: var(--accent-blue);
+      color: #0b0f19;
+      border-color: var(--accent-blue);
+    }
+
+    .progress-bar-wrap {
+      width: 140px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 9999px;
+      overflow: hidden;
+    }
+
+    #progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
+      border-radius: 9999px;
+      transition: width 0.3s ease;
+    }
+
+    .hint {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* Print Styles for PDF Export */
+    @media print {
+      body {
+        overflow: visible !important;
+        height: auto !important;
+      }
+
+      #deck-container {
+        display: block !important;
+        height: auto !important;
+        background: #fff !important;
+      }
+
+      .slide {
+        position: relative !important;
+        opacity: 1 !important;
+        transform: none !important;
+        display: block !important;
+        page-break-after: always !important;
+        height: 100vh !important;
+        width: 100vw !important;
+        max-width: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        background: #0f172a !important;
+        color: #fff !important;
+      }
+
+      #controls,
+      #speaker-notes-pane {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="deck-container">
+
+    <!-- SLIDE 1: Title Hero -->
+    <section class="slide active"
+      data-notes="Welcome professors and evaluators. Today we present the Dev Server Manager — an automated Linux administration and web observability system designed to manage infrastructure for 40 developers on Ubuntu Linux.">
+      <div class="slide-header">
+        <div>
+          <span class="slide-tag">Systems & Infrastructure Project</span>
+          <h1 class="slide-title" style="font-size: 2.5rem; margin-top: 6px;">Dev Server Manager</h1>
+          <p class="slide-subtitle">Automated Linux Administration Suite & Web Dashboard for 40 Developers</p>
+        </div>
+        <div class="slide-num">01 / 13</div>
+      </div>
+      <div class="slide-body" style="justify-content: space-between;">
+        <div class="grid-3" style="margin-top: 10px;">
+          <div class="card" style="border-top: 3px solid var(--accent-blue);">
+            <h3><span class="badge badge-blue">OS PLATFORM</span> Ubuntu Linux</h3>
+            <p>Engineered for Ubuntu 22.04 / 24.04 LTS environments, supporting real disk blocks or loopback emulation.
+            </p>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--accent-green);">
+            <h3><span class="badge badge-green">DUAL INTERFACE</span> CLI & Web</h3>
+            <p>Seamless operation via interactive terminal menu (<code>admin_panel.sh</code>) or real-time Flask Web
+              Dashboard.</p>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--accent-purple);">
+            <h3><span class="badge badge-purple">AUTOMATION</span> Zero-Touch</h3>
+            <p>Native cron scheduler handling automated telemetry, verified backups, and self-cleaning disk hygiene.</p>
+          </div>
+        </div>
+
+        <div class="card"
+          style="background: rgba(30, 41, 59, 0.5); border-left: 4px solid var(--accent-blue); padding: 18px 24px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-weight: 700; font-size: 1.1rem; color: #fff;">Key Technical Innovations</div>
+              <div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">
+                • Setgid Sticky Bit (2775) on Shared Git Repos • LVM Online Resizing (Zero Downtime) • Whitelisted
+                Subprocess Security Model (No Shell Injection)
+              </div>
+            </div>
+            <span class="badge badge-blue" style="font-size: 0.85rem; padding: 6px 12px;">READY TO DEPLOY</span>
+          </div>
+        </div>
+
+        <div
+          style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid var(--card-border); font-size: 0.85rem; color: var(--text-muted);">
+          <span>Course: Linux Systems & DevOps Administration</span>
+          <span>Target: 40 Engineers (dev01 - dev40)</span>
+          <span>Standard: POSIX & Enterprise LVM2</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 2: Problem Statement & Solution -->
+    <section class="slide"
+      data-notes="Managing 40 software developers on a shared Linux server manually causes 4 major problems: configuration drift, permission conflicts in Git, disk exhaustion, and missed backups. Here is our problem-solution mapping.">
+      <div class="slide-header">
+        <div>
+          <span class="slide-tag">Operational Scope</span>
+          <h2 class="slide-title">The Challenge: 40 Developers, 1 Server</h2>
+          <p class="slide-subtitle">Transforming brittle manual sysadmin tasks into an automated, fault-tolerant system
+          </p>
+        </div>
+        <div class="slide-num">02 / 13</div>
+      </div>
+      <div class="slide-body">
+        <div class="grid-2">
+          <div class="card" style="border-left: 4px solid var(--accent-rose);">
+            <h3 style="color: var(--accent-rose);">Manual Pain Points (Without System)</h3>
+            <ul
+              style="list-style: none; space-y: 12px; font-size: 0.85rem; color: #cbd5e1; margin-top: 12px; display: flex; flex-direction: column; gap: 10px;">
+              <li>❌ <strong>Permission Conflicts:</strong> Developer A creates code; Developer B cannot edit due to
+                default umask.</li>
+              <li>❌ <strong>Disk Exhaustion:</strong> Build artifacts, core dumps, and logs fill partitions, halting the
+                entire team.</li>
+              <li>❌ <strong>Credential Leakage:</strong> Shared passwords remain active forever without enforced
+                rotation.</li>
+              <li>❌ <strong>Brittle Backups:</strong> Manual scripts with no data verification or retention purge
+                policy.</li>
+            </ul>
+          </div>
+          <div class="card" style="border-left: 4px solid var(--accent-green);">
+            <h3 style="color: var(--accent-green);">Engineered Solution (Dev Server Manager)</h3>
+            <ul
+              style="list-style: none; font-size: 0.85rem; color: #cbd5e1; margin-top: 12px; display: flex; flex-direction: column; gap: 10px;">
+              <li>✅ <strong>Setgid Group Inheritance (2775):</strong> Every commit automatically belongs to
+                <code>developers</code>.</li>
+              <li>✅ <strong>LVM Dynamic Storage:</strong> Grow partitions online with <code>lvextend -r</code> without
+                unmounting.</li>
+              <li>✅ <strong>Enforced Password Expiry:</strong> <code>chage -d 0</code> forces immediate password change
+                on login.</li>
+              <li>✅ <strong>Verified Tarball Pipeline:</strong> <code>tar -tzf</code> integrity checks with 7-day
+                retention prune.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="code-box">
+          <span class="comment"># Problem Solved: Developer accounts provisioned in seconds with zero manual
+            errors</span><br>
+          <span class="cmd">sudo</span> ./admin_panel.sh <span class="arg">--option 22</span> <span class="comment">#
+            Executes full automated end-to-end server orchestration</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 3: Architecture & 5 Pillars -->
+    <section class="slide"
+      data-notes="Our system is built on five core pillars: Identity & Security, Collaborative Repos, Dynamic LVM, Background Cron Automation, and Dual Observability.">
+      <div class="slide-header">
+        <div>
+          <span class="slide-tag">System Design</span>
+          <h2 class="slide-title">System Architecture: The 5 Core Pillars</h2>
+          <p class="slide-subtitle">Modular, decoupled architecture running natively on Ubuntu Linux</p>
+        </div>
+        <div class="slide-num">03 / 13</div>
+      </div>
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="card">
+            <span class="badge badge-blue">PILLAR 1</span>
+            <h3 style="margin-top: 8px;">Identity & Security</h3>
+            <p>Group <code>developers</code>, 40 accounts, forced first-login password rotation via PAM, UID &lt; 1000
+              protection.</p>
+          </div>
+          <div class="card">
+            <span class="badge badge-green">PILLAR 2</span>
+            <h3 style="margin-top: 8px;">Shared Git Repos</h3>
+            <p>Centralized bare repos in <code>/srv/repos</code>, <code>chmod 2775</code> setgid bit, group-shared push
+              permission.</p>
+          </div>
+          <div class="card">
+            <span class="badge badge-purple">PILLAR 3</span>
+            <h3 style="margin-top: 8px;">Dynamic Storage (LVM)</h3>
+            <p>PV &rarr; VG (<code>vg_dev</code>) &rarr; LVs (<code>lv_repos</code>, <code>lv_backup</code>) with 20%
+              pool capacity reserved for online expansion.</p>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <span class="badge badge-amber">PILLAR 4</span>
+            <h3 style="margin-top: 8px;">System Automation (Cron)</h3>
+            <p>System-wide jobs in <code>/etc/cron.d/devserver</code>: monitor (5 min), verified backup (02:00), cleanup
+              (Sun 03:00).</p>
+          </div>
+          <div class="card">
+            <span class="badge badge-rose">PILLAR 5</span>
+            <h3 style="margin-top: 8px;">Dual Observability</h3>
+            <p>Terminal dashboard + Flask REST API bound to <code>127.0.0.1:5000</code> with a terminal command auditor
+              drawer.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 4: User Management (Features 1-5) -->
+    <section class="slide"
+      data-notes="Features 1 through 5 handle developer identity. We use bulk creation from users.txt, enforce password reset using chage -d 0, and protect system accounts by checking UID greater than 1000.">
+      <div class="slide-header">
+        <div>
+          <span class="slide-tag">Features 1 – 5</span>
+          <h2 class="slide-title">User & Identity Lifecycle Management</h2>
+          <p class="slide-subtitle">Bulk provisioning, password aging, group membership, and system account protection
+          </p>
+        </div>
+        <div class="slide-num">04 / 13</div>
+      </div>
+      <div class="slide-body">
+        <div class="grid-2">
+          <div>
+            <table class="slide-table">
+              <thead>
+                <tr>
+                  <th>Feature</th>
+                  <th>Action</th>
+                  <th>Key Linux Mechanism</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Bulk Create</strong></td>
+                  <td>40 Devs from <code>users.txt</code></td>
+                  <td><code>useradd -m -s /bin/bash -G developers</code></td>
+                </tr>
+                <tr>
+                  <td><strong>2. Add Dev</strong></td>
+                  <td>Single Account</td>
+                  <td>Regex <code>^[a-z][a-z0-9_-]{1,31}$</code></td>
+                </tr>
+                <tr>
+                  <td><strong>3. Delete Dev</strong></td>
+                  <td>Remove + Purge Home</td>
+                  <td><code>userdel -r</code> (Blocked if UID &lt; 1000)</td>
+                </tr>
+                <tr>
+                  <td><strong>4. List Devs</strong></td>
+                  <td>Group Audit</td>
+                  <td><code>getent group developers</code></td>
+                </tr>
+                <tr>
+                  <td><strong>5. Lock/Unlock</strong></td>
+                  <td>Suspend Access</td>
+                  <td><code>usermod -L / -U</code> (Prepends <code>!</code> in shadow)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div class="code-box">
+              <span class="comment"># Password aging: Force reset on first SSH login</span><br>
+              <span class="cmd">echo</span> <span class="arg">"$u:Welcome@123"</span> | <span
+                class="cmd">chpasswd</span><br>
+              <span class="cmd">chage</span> <span class="arg">-d 0 "$u"</span> <span class="comment"># Sets last change
+                to epoch (1970)</span>
+            </div>
+            <div class="card" style="border-left: 3px solid var(--accent-amber);">
+              <h4 style="color: var(--accent-amber); font-size: 0.9rem;">Examiner Defense Point: Why check UID &lt;
+                1000?</h4>
+              <p style="font-size: 0.8rem; margin-top: 4px;">
+                Debian/Ubuntu reserves UIDs 0–999 for system daemons. Rejecting deletion for UID &lt; 1000 ensures
+                critical system users (root, www-data, sshd) are never accidentally removed.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 5: Shared Git Repositories (Features 6-8) -->
+    <section class="slide"
+      data-notes="Features 6 to 8 configure collaborative Git repositories. The secret weapon here is the setgid bit (2775) on /srv/repos, ensuring every commit inherits the developers group.">
+      <div class="slide-header">
+        <div>
+          <span class="slide-tag">Features 6 – 8</span>
+          <h2 class="slide-title">Shared Git Repositories & Setgid (2775)</h2>
+          <p class="slide-subtitle">Zero-conflict collaboration using Linux sticky group permissions and bare
+            repositories</p>
+        </div>
+        <div class="slide-num">05 / 13</div>
+      </div>
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="card">
+            <h3>1. The Setgid Bit (`2`)</h3>
+            <p>Setting <code>chmod 2775 /srv/repos</code> forces any file or directory created within to inherit the
+              group <code>developers</code>, regardless of the creator's primary group.</p>
+          </div>
+          <div class="card">
+            <h3>2. Bare Repositories</h3>
+            <p>Created with <code>git init --bare --shared=group</code>. Omits a working tree to eliminate merge
+              conflicts during remote <code>git push</code> operations.</p>
+          </div>
+          <div class="card">
+            <h3>3. Git Safe Directory</h3>
+            <p>Configured with <code>git config --system --add safe.directory '*'</code> to prevent Git 2.35+ ownership
+              mismatch errors across multi-user checkouts.</p>
+          </div>
+        </div>
+        <div class="code-box">
+          <span class="comment"># How a developer clones and pushes to the shared server</span><br>
+          <span class="cmd">git clone</span> <span class="arg">ssh://dev01@devserver/srv/repos/webapp.git</span><br>
+          <span class="cmd">git commit</span> <span class="arg">-m "Feature commit"</span> && <span class="cmd">git push
+            origin main</span> <span class="comment"># Permitted with group write access</span>
+        </div>
+        <div
+          style="font-size: 0.85rem; color: var(--text-muted); background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 8px;">
+          💡 <strong>Key Difference:</strong> <code>ls -l</code> shows directory metadata (4096 B); our script uses
+          <code>du -sh</code> to calculate true disk block consumption across all Git packfiles.
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 6: Storage & LVM (Features 11-13) -->
+    <section class="slide"
+      data-notes="Features 11 to 13 implement LVM storage. We demonstrate online volume growth using lvextend -r, which resizes the ext4 filesystem while mounted without unmounting or restarting.">
+      <div class="slide-header">
+        <div>
+          <span class="slide-tag">Features 11 – 13</span>
+          <h2 class="slide-title">Enterprise Storage: LVM & Online Growing</h2>
+          <p class="slide-subtitle">Physical Volumes, Volume Groups, and zero-downtime online partition expansion</p>
+        </div>
+        <div class="slide-num">06 / 13</div>
+      </div>
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="card" style="border-top: 3px solid var(--accent-blue);">
+            <h3>Physical Volume (PV)</h3>
+            <p>Target disk (real <code>/dev/sdb</code> or 3GB loopback <code>/var/lib/devserver/disk.img</code> via
+              <code>losetup</code>).</p>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--accent-purple);">
+            <h3>Volume Group (vg_dev)</h3>
+            <p>Central pool. 50% &rarr; <code>lv_repos</code>, 30% &rarr; <code>lv_backup</code>. <strong>20% left
+                unallocated</strong> for online growth.</p>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--accent-green);">
+            <h3>Online Grow Console</h3>
+            <p>Expands mounted logical volume and ext4 filesystem instantly with
+              <code>lvextend -r -L +&lt;mb&gt;M</code>.</p>
+          </div>
+        </div>
+        <div class="code-box">
+          <span class="comment"># Growing the repositories partition by 500 MB while fully mounted</span><br>
+          <span class="cmd">sudo lvextend</span> <span class="arg">-r -L +500M /dev/vg_dev/lv_repos</span><br>
+          <span class="comment"># Output: Size of logical volume vg_dev/lv_repos changed -> resize2fs executed
+            online!</span>
+        </div>
+        <div class="card"
+          style="background: rgba(16, 185, 129, 0.08); border-left: 4px solid var(--accent-green); padding: 12px 18px;">
+          <span style="color: var(--accent-green); font-weight: 700; font-size: 0.85rem;">CRITICAL VIVA QUESTION: What
+            does the -r flag do?</span>
+          <p style="font-size: 0.8rem; color: #cbd5e1; margin-top: 4px;">
+            <code>-r</code> (or <code>--resizefs</code>) automatically invokes <code>resize2fs</code> in the background.
+            Without <code>-r</code>, only the LVM block device grows, leaving the filesystem small and requiring manual
+            unmount/resize.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 7: Cron Automation (Features 16 & 21) -->
+    <section class="slide"
+      data-notes="Features 16 and 21 configure automation. We use /etc/cron.d/devserver, which is modular, system-wide, and includes an explicit root user column.">
+      <div class="slide-header">
+        <div>
+          <span class="slide-tag">Features 16 & 21</span>
+          <h2 class="slide-title">System Automation via Cron Engine</h2>
+          <p class="slide-subtitle">Modular, version-controlled scheduled tasks running under systemd cron</p>
+        </div>
+        <div class="slide-num">07 / 13</div>
+      </div>
+      <div class="slide-body">
+        <div class="grid-2">
+          <div class="card">
+            <h3>Why `/etc/cron.d/` vs `crontab -e`?</h3>
+            <ul
+              style="list-style: none; space-y: 10px; font-size: 0.85rem; color: #cbd5e1; margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+              <li>🔹 <strong>Modular Deployment:</strong> Managed as a dedicated file
+                (<code>/etc/cron.d/devserver</code>).</li>
+              <li>🔹 <strong>Explicit User Column:</strong> Specifies <code>root</code> directly, avoiding user crontab
+                collisions.</li>
+              <li>🔹 <strong>Version Control Ready:</strong> Can be deployed cleanly via Git or Ansible.</li>
+              <li>🔹 <strong>Systemd Integration:</strong> Managed via <code>systemctl enable --now cron</code>.</li>
+            </ul>
+          </div>
+          <div class="code-box">
+            <span class="comment"># /etc/cron.d/devserver schedule table</span><br>
+            SHELL=/bin/bash<br>
+            PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin<br><br>
+            <span class="comment"># 1. Telemetry & Alerts (Every 5 minutes)</span><br>
+            <span class="cmd">*/5 * * * *</span> root /opt/dev-server-manager/scripts/monitor.sh<br><br>
+            <span class="comment"># 2. Verified Backup (Daily at 02:00 AM)</span><br>
+            <span class="cmd">0 2 * * *</span> root /opt/dev-server-manager/scripts/backup.sh<br><br>
+            <span class="comment"># 3. Disk Cleanup (Sundays at 03:00 AM)</span><br>
+            <span class="cmd">0 3 * * 0</span> root /opt/dev-server-manager/scripts/cleanup.sh
+          </div>
+        </div>
+        <div
+          style="font-size: 0.85rem; color: var(--text-muted); background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 8px;">
+          ⚙️ <strong>Execution Safety:</strong> Environment variables (SHELL and PATH) are explicitly declared at the
+          top of the file to guarantee deterministic command execution.
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 8: Monitoring & Dashboard (Features 17 & 20) -->
+    <section class="slide"
+      data-notes="Features 17 and 20 provide observability. Member 3 will explain how we parse /proc/loadavg, free, and df, evaluate alerts, and audit failed SSH logins.">
+      <div class="slide-header">
+        <div>
+          <span class="slide-tag">Features 17 & 20</span>
+          <h2 class="slide-title">Observability & Health Telemetry</h2>
+          <p class="slide-subtitle">Threshold monitoring, process auditing, security logs, and visual terminal gauges
+          </p>
+        </div>
+        <div class="slide-num">08 / 13</div>
+      </div>
+      <div class="slide-body">
+        <div class="grid-4">
+          <div class="card">
+            <div class="card-stat" style="color: var(--accent-blue);">CPU</div>
+            <p>Load average from <code>/proc/loadavg</code>. Alert raised when <strong>Load &gt; Core Count</strong>.
+            </p>
+          </div>
+          <div class="card">
+            <div class="card-stat" style="color: var(--accent-amber);">RAM</div>
+            <p>Active memory utilization via <code>free</code>. Alert raised when <strong>RAM &ge; 85%</strong>.</p>
+          </div>
+          <div class="card">
+            <div class="card-stat" style="color: var(--accent-rose);">DISK</div>
+            <p>Physical mounts audited via <code>df -P</code>. Alert raised when <strong>Disk &ge; 80%</strong>.</p>
+          </div>
+          <div class="card">
+            <div class="card-stat" style="color: var(--accent-green);">AUTH</div>
+            <p>Monitors <code>/var/log/auth.log</code> to detect SSH brute-force password failures.</p>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="code-box">
+            <span class="comment"># Output of monitor.sh --dashboard</span><br>
+            Host: devserver | Uptime: up 14 days, 3 hours<br>
+            Load avg : 1.12 (cores: 4)<br>
+            Memory : [########------------] 42%<br>
+            /srv/repos: [##########----------] 52%<br>
+            Top CPU : python3 (12.4%), git (8.2%)
+          </div>
+          <div class="code-box">
+            <span class="comment"># Structured audit log (/var/log/devserver/monitor.log)</span><br>
+            2026-11-14 02:00:00 load=0.82 mem=41% disk(/)=38% users=3<br>
+            2026-11-14 02:05:00 load=4.12 mem=88% disk(/)=38% users=3<br>
+            <span style="color: var(--accent-rose); font-weight: 700;">2026-11-14 02:05:00 ALERT High CPU load: 4.12
+              (cores: 4)</span><br>
+            <span style="color: var(--accent-rose); font-weight: 700;">2026-11-14 02:05:00 ALERT High memory usage:
+              88%</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 9: Backup & Disaster Recovery (Features 18 & 19) -->
+    <section class="slide"
+      data-notes="Features 18 and 19 represent our disaster recovery subsystem. Member 1 will explain the 3-stage pipeline: atomic packaging with UID/GID preservation, tar -tzf verification, and safe temporary folder restore.">
+      <div class="slide-header">
+        <div>
+          <span class="slide-tag">Features 18 & 19</span>
+          <h2 class="slide-title">Disaster Recovery & Backup Pipeline</h2>
+          <p class="slide-subtitle">Automated archive creation, header verification, retention, and sandboxed restore
+          </p>
+        </div>
+        <div class="slide-num">09 / 13</div>
+      </div>
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="card">
+            <span class="badge badge-blue">PHASE 1</span>
+            <h3 style="margin-top: 8px;">Comprehensive Packaging</h3>
+            <p>Archives <code>/srv/repos</code> along with <code>/etc/passwd</code> and <code>/etc/group</code> to
+              preserve numerical UID/GID mappings on recovery.</p>
+          </div>
+          <div class="card">
+            <span class="badge badge-amber">PHASE 2</span>
+            <h3 style="margin-top: 8px;">Integrity Verification</h3>
+            <p>Runs <code>tar -tzf</code> immediately after creation. Corrupt archives that fail decompression are
+              auto-deleted with an error logged.</p>
+          </div>
+          <div class="card">
+            <span class="badge badge-green">PHASE 3</span>
+            <h3 style="margin-top: 8px;">Safe Sandbox Restore</h3>
+            <p>Extracts to <code>/tmp/restore_&lt;time&gt;</code> to let the admin inspect trees safely without risking
+              live production overwrites.</p>
+          </div>
+        </div>
+        <div class="code-box">
+          <span class="comment"># Backup generation, verification, and 7-day retention prune</span><br>
+          <span class="cmd">tar</span> <span class="arg">-czf "$BACKUP_DIR/backup_$(date +%F_%H%M%S).tar.gz" -C /
+            srv/repos etc/passwd etc/group</span><br>
+          <span class="cmd">tar</span> <span class="arg">-tzf "$file"</span> >/dev/null 2>&1 && <span
+            class="cmd">echo</span> "Verified OK" || <span class="cmd">rm</span> -f "$file"<br>
+          <span class="cmd">find</span> <span class="arg">"$BACKUP_DIR" -name "backup_*.tar.gz" -mtime +7 -delete</span>
+        </div>
+        <div class="card"
+          style="background: rgba(56, 189, 248, 0.08); border-left: 4px solid var(--accent-blue); padding: 10px 16px;">
+          <span style="color: var(--accent-blue); font-weight: 700; font-size: 0.85rem;">EXAMINER TIP: Why not
+            rsync?</span>
+          <span style="font-size: 0.8rem; color: #cbd5e1; margin-left: 8px;">
+            Tar creates immutable point-in-time timestamped snapshots that can be verified and moved off-site easily,
+            whereas rsync only mirrors live trees.
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 10: Disk Cleanup & Hygiene (Features 14 & 15) -->
+    <section class="slide"
+      data-notes="Features 14 and 15 handle automated disk cleanup. Member 2 will explain our multi-tier deletion rules, why we lock searches using -xdev, and how df before and after measures space freed.">
+      <div class="slide-header">
+        <div>
+          <span class="slide-tag">Features 14 & 15</span>
+          <h2 class="slide-title">Automated Disk Hygiene & Storage Reclamation</h2>
+          <p class="slide-subtitle">Safe multi-tier pruning, cross-device boundary protection, and measurable space
+            recovery</p>
+        </div>
+        <div class="slide-num">10 / 13</div>
+      </div>
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="card">
+            <h3>1. Tiered Pruning Rules</h3>
+            <p>Purges <code>/tmp</code> (&gt;7 days), <code>/var/tmp</code> (&gt;30 days), and developer core dumps +
+              swap files (<code>*.tmp</code>, <code>*~</code>) in <code>/home</code>.</p>
+          </div>
+          <div class="card">
+            <h3>2. Cross-Device Safety (`-xdev`)</h3>
+            <p>Enforces <code>find -xdev</code> to prevent deletion from crossing filesystem boundaries into mounted
+              repositories or NFS shares.</p>
+          </div>
+          <div class="card">
+            <h3>3. Log Compression & Metrics</h3>
+            <p>Compresses logs &gt;7 days with <code>gzip -f</code>, clears apt package cache, and computes freed space
+              via <code>df</code> deltas.</p>
+          </div>
+        </div>
+        <div class="code-box">
+          <span class="comment"># Measuring disk space before and after cleanup</span><br>
+          before=$(<span class="cmd">df</span> --output=used -k / | tail -1)<br>
+          <span class="cmd">find</span> /home -xdev -type f -name "core" -mtime +7 <span class="arg">-delete</span><br>
+          after=$(<span class="cmd">df</span> --output=used -k / | tail -1)<br>
+          echo "Space freed: $(( (before - after) / 1024 )) MB"
+        </div>
+        <div
+          style="font-size: 0.85rem; color: var(--text-muted); background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 8px;">
+          🛡️ <strong>Dry-Run Mode:</strong> Running <code>cleanup.sh --dry-run</code> previews matches through
+          <code>sed "s/^/ would delete: /"</code> without executing deletions.
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 11: Web Dashboard & Security -->
+    <section class="slide"
+      data-notes="Our web management dashboard runs Flask and is bound to 127.0.0.1:5000. It implements defense-in-depth: shell=False to prevent injection, a strict binary whitelist, and a collapsible command inspector.">
+      <div class="slide-header">
+        <div>
+          <span class="slide-tag">Web Console</span>
+          <h2 class="slide-title">Flask Web Console: Security & Architecture</h2>
+          <p class="slide-subtitle">Zero-overhead REST backend, localhost binding, and command auditor drawer</p>
+        </div>
+        <div class="slide-num">11 / 13</div>
+      </div>
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="card" style="border-top: 3px solid var(--accent-rose);">
+            <h3>Localhost Binding</h3>
+            <p>Strictly bound to <code>127.0.0.1:5000</code>. Remote access requires an authenticated SSH tunnel
+              (<code>ssh -L 5000:localhost:5000</code>).</p>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--accent-amber);">
+            <h3>No Shell Injection</h3>
+            <p>Uses <code>subprocess.run(args, shell=False)</code> exclusively. Metacharacters like <code>;</code> or
+              <code>|</code> cannot execute arbitrary code.</p>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--accent-green);">
+            <h3>Binary Whitelist</h3>
+            <p>Calls restricted to 25 approved binaries (<code>useradd</code>, <code>lvextend</code>, etc.). Blocks
+              unauthorized binary execution.</p>
+          </div>
+        </div>
+        <div class="card" style="background: rgba(15, 23, 42, 0.9); border: 1px dashed var(--accent-blue);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="color: var(--accent-blue);">Terminal Command Inspector (Live Drawer)</h4>
+            <span class="badge badge-blue">ENTERPRISE AUDITING</span>
+          </div>
+          <p style="font-size: 0.85rem; color: #cbd5e1;">
+            Every button clicked in the web interface returns a JSON envelope containing the <strong>exact Linux command
+              executed</strong> and its <strong>raw stdout/stderr output</strong>. This lets evaluators see the
+            underlying Linux commands powering each action.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 12: Team Roles & Defense Walkthrough -->
+    <section class="slide"
+      data-notes="Here is the breakdown of our team roles for the presentation and defense. Each member has an assigned subsystem with ready answers for examiner questions.">
+      <div class="slide-header">
+        <div>
+          <span class="slide-tag">Team Presentation</span>
+          <h2 class="slide-title">Team Roles & Technical Defense Structure</h2>
+          <p class="slide-subtitle">Clear delegation of responsibilities and specialized subsystem defense</p>
+        </div>
+        <div class="slide-num">12 / 15</div>
+      </div>
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="card" style="border-top: 4px solid var(--accent-blue);">
+            <span class="badge badge-blue">SPEAKER 1</span>
+            <h3 style="margin-top: 8px;">Backup & Recovery</h3>
+            <p style="margin-bottom: 12px;"><strong>Owner:</strong> <code>scripts/backup.sh</code> & Opts 18/19</p>
+            <ul
+              style="font-size: 0.8rem; color: #cbd5e1; list-style: none; display: flex; flex-direction: column; gap: 6px;">
+              <li>• Scoped tarball packaging</li>
+              <li>• <code>tar -tzf</code> header verification</li>
+              <li>• 7-day retention prune logic</li>
+              <li>• Safe sandbox test restoration</li>
+            </ul>
+          </div>
+          <div class="card" style="border-top: 4px solid var(--accent-amber);">
+            <span class="badge badge-amber">SPEAKER 2</span>
+            <h3 style="margin-top: 8px;">Disk Hygiene & Cleanup</h3>
+            <p style="margin-bottom: 12px;"><strong>Owner:</strong> <code>scripts/cleanup.sh</code> & Opts 14/15</p>
+            <ul
+              style="font-size: 0.8rem; color: #cbd5e1; list-style: none; display: flex; flex-direction: column; gap: 6px;">
+              <li>• Multi-tier directory aging rules</li>
+              <li>• Cross-device safety via <code>-xdev</code></li>
+              <li>• Dry-run preview execution</li>
+              <li>• <code>df</code> delta space freed tracking</li>
+            </ul>
+          </div>
+          <div class="card" style="border-top: 4px solid var(--accent-green);">
+            <span class="badge badge-green">SPEAKER 3</span>
+            <h3 style="margin-top: 8px;">Monitoring & Dashboard</h3>
+            <p style="margin-bottom: 12px;"><strong>Owner:</strong> <code>scripts/monitor.sh</code> & Opt 17</p>
+            <ul
+              style="font-size: 0.8rem; color: #cbd5e1; list-style: none; display: flex; flex-direction: column; gap: 6px;">
+              <li>• <code>/proc/loadavg</code> & memory parsing</li>
+              <li>• Threshold alert engine in awk</li>
+              <li>• Auth log failed password audit</li>
+              <li>• ASCII progress bar rendering</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card"
+          style="background: rgba(255,255,255,0.02); font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+          🤝 <strong>Team Lead / Coordinator:</strong> Architecture, LVM dynamic storage, User provisioning, Setgid Git
+          setup, and Web Console integration.
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 13: Evaluator Feedback 1 - Docker Dynamic Memory & LVM -->
+    <section class="slide"
+      data-notes="This slide directly answers Evaluator Feedback #1: Using Docker for dynamic memory allocation and LVM implementation. We explain cgroups v2 live scaling with docker update, and binding host LVM partitions directly into developer containers.">
+      <div class="slide-header">
+        <div>
+          <span class="slide-tag"
+            style="background: rgba(167, 139, 250, 0.15); color: var(--accent-purple); border-color: rgba(167, 139, 250, 0.3);">Evaluator
+            Feedback #1</span>
+          <h2 class="slide-title">Docker Dynamic Memory & LVM Storage</h2>
+          <p class="slide-subtitle">Runtime cgroups v2 memory scaling (zero downtime) and direct host LVM volume binding
+          </p>
+        </div>
+        <div class="slide-num">13 / 15</div>
+      </div>
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="card" style="border-top: 3px solid var(--accent-purple);">
+            <span class="badge badge-purple">DYNAMIC MEMORY</span>
+            <h3 style="margin-top: 8px;">cgroups v2 Scaling</h3>
+            <p>Containers start with <code>--memory=512m</code> and <code>--memory-reservation=256m</code>. Memory is
+              scaled up or down live using <code>docker update --memory</code> without stopping active workloads.</p>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--accent-blue);">
+            <span class="badge badge-blue">LVM INTEGRATION</span>
+            <h3 style="margin-top: 8px;">Direct LVM Binds</h3>
+            <p>Host LVM partition <code>/srv/repos</code> (ext4 on <code>lv_repos</code>) is directly mapped:
+              <code>-v /srv/repos:/workspace/repos:rw</code>. Container code inherits host setgid permissions and
+              auto-expansion.</p>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--accent-green);">
+            <span class="badge badge-green">SANDBOX ISOLATION</span>
+            <h3 style="margin-top: 8px;">Developer Sandboxes</h3>
+            <p>Every developer gets an isolated Linux sandbox container with strict memory ceilings, preventing
+              noisy-neighbor crashes on the host OS.</p>
+          </div>
+        </div>
+        <div class="code-box">
+          <span class="comment"># Live dynamic memory scaling (kernel updates /sys/fs/cgroup/memory.max in
+            microseconds)</span><br>
+          <span class="cmd">sudo docker update</span> <span class="arg">--memory 1536m --memory-swap 3072m
+            devserver-sandbox</span><br>
+          <span class="comment"># Output: devserver-sandbox memory updated online without dropping active shell or
+            build</span>
+        </div>
+        <div class="card"
+          style="background: rgba(167, 139, 250, 0.08); border-left: 4px solid var(--accent-purple); padding: 10px 16px;">
+          <span style="color: var(--accent-purple); font-weight: 700; font-size: 0.85rem;">EXAMINER DEFENSE: How is LVM
+            coupled with Docker?</span>
+          <span style="font-size: 0.8rem; color: #cbd5e1; margin-left: 8px;">
+            Rather than storing data in ephemeral Docker layers, container volumes are bound to the underlying LVM
+            logical volume (<code>lv_repos</code>). When developers commit large files, our auto-disk system expands the
+            LVM partition online while Docker runs.
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 14: Evaluator Feedback 2 - Load Balancing & Auto Disk Management -->
+    <section class="slide"
+      data-notes="This slide directly answers Evaluator Feedback #2: Implementing Load Balancing and Auto Disk Management. We showcase Nginx least_conn distribution across 3 backend workers and auto_disk.sh which auto-expands LVM at 80% and auto-cleans at 90%.">
+      <div class="slide-header">
+        <div>
+          <span class="slide-tag"
+            style="background: rgba(52, 211, 153, 0.15); color: var(--accent-green); border-color: rgba(52, 211, 153, 0.3);">Evaluator
+            Feedback #2</span>
+          <h2 class="slide-title">Load Balancing & Auto Disk Management</h2>
+          <p class="slide-subtitle">High-availability Nginx proxy cluster and autonomous LVM auto-expansion with
+            self-healing</p>
+        </div>
+        <div class="slide-num">14 / 15</div>
+      </div>
+      <div class="slide-body">
+        <div class="grid-2">
+          <div class="card" style="border-left: 4px solid var(--accent-blue);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <h3 style="color: var(--accent-blue); margin: 0;">Nginx High-Availability Load Balancer</h3>
+              <span class="badge badge-blue">PORT 8080</span>
+            </div>
+            <p style="margin-bottom: 10px;">Fronts 3 backend Flask/Gunicorn worker instances (ports 5001, 5002, 5003)
+              using the <code>least_conn</code> algorithm:</p>
+            <ul
+              style="font-size: 0.8rem; color: #cbd5e1; list-style: none; display: flex; flex-direction: column; gap: 6px;">
+              <li>• <strong>Dynamic Least Connections:</strong> Routes requests to the worker with the fewest active
+                jobs.</li>
+              <li>• <strong>Health Checks & Failover:</strong> <code>max_fails=2 fail_timeout=10s</code> isolates
+                crashed nodes.</li>
+              <li>• <strong>Telemetry Header:</strong> <code>X-Backend-Server</code> reveals which node served each
+                request.</li>
+            </ul>
+          </div>
+          <div class="card" style="border-left: 4px solid var(--accent-green);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <h3 style="color: var(--accent-green); margin: 0;">Autonomous Auto Disk Management</h3>
+              <span class="badge badge-green">CRON RUNNER</span>
+            </div>
+            <p style="margin-bottom: 10px;"><code>scripts/auto_disk.sh</code> inspects partitions every 5 minutes with
+              zero human intervention:</p>
+            <ul
+              style="font-size: 0.8rem; color: #cbd5e1; list-style: none; display: flex; flex-direction: column; gap: 6px;">
+              <li>• <strong>Auto-Grow at 80%:</strong> Automatically runs <code>lvextend -r -L +300M</code> from pool
+                free space.</li>
+              <li>• <strong>Self-Healing at 90%:</strong> Triggers emergency cleanup, docker image prune, and log gzip.
+              </li>
+              <li>• <strong>Audit Trail:</strong> Records all <code>[AUTO-GROW]</code> events to
+                <code>/var/log/devserver/activity.log</code>.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="code-box">
+          <span class="comment"># Testing Auto-Grow and Load Balancing traffic distribution</span><br>
+          <span class="cmd">sudo ./scripts/auto_disk.sh</span> <span class="arg">--status</span> <span class="comment">#
+            Audits LVM headroom & auto-grow thresholds</span><br>
+          <span class="cmd">sudo ./scripts/load_balancer.sh</span> <span class="arg">--test-traffic</span> <span
+            class="comment"># Fired 15 requests -> balanced evenly across 5001-5003</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 15: Conclusion & Full Auto Setup (Feature 22) -->
+    <section class="slide"
+      data-notes="We conclude with Feature 22: Full Auto Setup, incorporating our new auto-disk and containerized extensions. Thank you for your time, we are now open for questions.">
+      <div class="slide-header">
+        <div>
+          <span class="slide-tag">Summary & Demo</span>
+          <h2 class="slide-title">Conclusion: The One-Command Server</h2>
+          <p class="slide-subtitle">Feature 22 delivers complete, self-healing, enterprise-ready infrastructure in under
+            3 minutes</p>
+        </div>
+        <div class="slide-num">15 / 15</div>
+      </div>
+      <div class="slide-body" style="justify-content: space-between;">
+        <div class="grid-2">
+          <div class="card">
+            <h3>Option 22: Full Auto Orchestration</h3>
+            <p style="margin-top: 8px;">Chains all sub-modules sequentially with verified idempotency:</p>
+            <div
+              style="font-family: var(--font-mono); font-size: 0.775rem; color: var(--accent-blue); margin-top: 10px; line-height: 1.6;">
+              1. Install Packages (apt-get)<br>
+              2. Bulk Provision 40 Devs (users.txt)<br>
+              3. Setup LVM Storage (vg_dev)<br>
+              4. Configure Setgid Git Repos (/srv/repos)<br>
+              5. Install Cron Jobs + Auto-Disk Schedule<br>
+              6. Execute Initial Verified Backup<br>
+              7. Launch Health Dashboard
+            </div>
+          </div>
+          <div class="card"
+            style="background: rgba(16, 185, 129, 0.05); border: 1px solid var(--accent-green); display: flex; flex-direction: column; justify-content: center; text-align: center; padding: 24px;">
+            <h3 style="color: var(--accent-green); font-size: 1.5rem; justify-content: center;">Finally</h3>
+            <p style="font-size: 0.9rem; margin-top: 8px;">
+              A resilient, load-balanced, and self-maintaining Linux server supporting 40 engineers with Docker dynamic
+              memory and LVM auto-expansion.
+            </p>
+            <div style="margin-top: 20px;">
+              <span class="badge badge-green" style="font-size: 1rem; padding: 8px 16px;">THANK YOU • OPEN FOR
+                Q&A</span>
+            </div>
+          </div>
+        </div>
+
+        <div
+          style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--card-border); font-size: 0.85rem; color: var(--text-muted);">
+          <span>Repository: dev-server-manager</span>
+          <span>Documentation: SETUP_COMMANDS.md & PRESENTATION_GUIDE.md</span>
+          <span>Platform: Ubuntu 22.04/24.04</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Speaker Notes Overlay -->
+  <div id="speaker-notes-pane">
+    <div class="notes-title">
+      <span>SPEAKER NOTES / SCRIPT (Press 'N' to toggle)</span>
+      <span style="cursor: pointer;" onclick="toggleNotes()">✕</span>
+    </div>
+    <div id="notes-content">Notes will appear here...</div>
+  </div>
+
+  <!-- Controls Bar -->
+  <div id="controls">
+    <button class="ctrl-btn" onclick="prevSlide()">◀ Prev</button>
+    <div class="progress-bar-wrap">
+      <div id="progress-fill"></div>
+    </div>
+    <button class="ctrl-btn" onclick="nextSlide()">Next ▶</button>
+    <button class="ctrl-btn" onclick="toggleNotes()" title="Toggle Speaker Script">🎙️ Script (N)</button>
+    <button class="ctrl-btn" onclick="toggleFullscreen()" title="Fullscreen presentation">⛶ Fullscreen (F)</button>
+    <span class="hint">[Keys: &larr; &rarr; Space | N: Notes | F: Fullscreen]</span>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    const progressFill = document.getElementById('progress-fill');
+    const notesPane = document.getElementById('speaker-notes-pane');
+    const notesContent = document.getElementById('notes-content');
+
+    function updateSlide(index) {
+      if (index < 0) index = 0;
+      if (index >= totalSlides) index = totalSlides - 1;
+      currentSlide = index;
+
+      slides.forEach((slide, i) => {
+        slide.classList.toggle('active', i === currentSlide);
+      });
+
+      const pct = ((currentSlide + 1) / totalSlides) * 100;
+      progressFill.style.width = pct + '%';
+
+      // Update speaker notes
+      const activeSlide = slides[currentSlide];
+      notesContent.textContent = activeSlide.getAttribute('data-notes') || 'No notes for this slide.';
+    }
+
+    function nextSlide() { updateSlide(currentSlide + 1); }
+    function prevSlide() { updateSlide(currentSlide - 1); }
+
+    function toggleNotes() {
+      notesPane.classList.toggle('show');
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => { });
+      } else {
+        document.exitFullscreen().catch(() => { });
+      }
+    }
+
+    // Keyboard navigation
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        prevSlide();
+      } else if (e.key === 'Home') {
+        updateSlide(0);
+      } else if (e.key === 'End') {
+        updateSlide(totalSlides - 1);
+      } else if (e.key === 'n' || e.key === 'N') {
+        toggleNotes();
+      } else if (e.key === 'f' || e.key === 'F') {
+        toggleFullscreen();
+      }
+    });
+
+    // Initialize
+    updateSlide(0);
+  </script>
+
+</body>
+
+</html>
